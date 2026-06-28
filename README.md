@@ -1,93 +1,163 @@
-# hackathon_3
+# Antigravity 🌌
 
+[![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](LICENSE)
+[![Python: 3.11](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
+[![Platform: Offline-First](https://img.shields.io/badge/Platform-Offline--First-orange.svg)](#)
+[![DB: SQLite](https://img.shields.io/badge/DB-SQLite-lightgrey.svg)](#)
 
+Antigravity is a zero-trust, offline-first intelligence processing pipeline designed to extract structured incident reports from raw field notes (audio and text). It executes entirely on local commodity hardware with strict resource boundaries and absolute network isolation.
 
-## Getting started
+---
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## 📖 Table of Contents
+1. [System Specifications & Scope](#-system-specifications--scope)
+2. [Processing Pipeline Architecture](#-processing-pipeline-architecture)
+3. [Memory & Thread Allocation](#-memory--thread-allocation)
+4. [File & Directory Structure](#-file--directory-structure)
+5. [Getting Started](#-getting-started)
+6. [Development Workflow](#-development-workflow)
+7. [System Resilience & Failbacks](#-system-resilience--failbacks)
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+---
 
-## Add your files
+## ⚙️ System Specifications & Scope
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+The system strictly enforces the following hardware and architectural bounds to prevent host system instability and ensure deterministic local execution:
+
+* **Zero Network Footprint:** Operating under a zero-trust model, all processing is local. No outbound network requests are made.
+* **Hardware Ceiling:** Optimized to run within **4GB RAM** and a maximum of **4 CPU threads**.
+* **Audio Inputs:** Raw audio files must be mono, `16kHz`, `.wav` format, under `25MB` (~15 minutes of speech).
+* **Text Inputs:** Plain UTF-8 text with a hard limit of `4,000 characters` (aligned with Phi-3 context limits).
+* **Persistent Storage:** Data is stored in a structured local SQLite database (`data/antigravity.db`).
+
+---
+
+## 🔄 Processing Pipeline Architecture
+
+```mermaid
+graph TD
+    A[File Ingest: .wav / .txt] -->|watchdog detection| B(src/app/queue_manager.py)
+    B -->|Generate UUID & Lock| C[data/queue/ & .lock]
+    C --> D{Is Audio File?}
+    D -->|Yes| E(src/engine/audio_processor.py)
+    E -->|faster-whisper int8, 2 threads| F[Transcribed Text]
+    D -->|No| F
+    F --> G(src/engine/slm_processor.py)
+    G -->|Phi-3 GGUF, 2 threads| H[Raw JSON Output]
+    H --> I[Pydantic Validation]
+    I -->|Valid JSON| J(src/engine/db.py)
+    J -->|SQL transaction| K[(SQLite: data/antigravity.db)]
+    K --> L[CLI Dashboard Update]
+```
+
+### Flow Walkthrough
+1. **Ingestion:** Files dropped into `data/cache/` are detected by a `watchdog` daemon. It generates an `incident_id` (UUIDv4) and places a `.lock` file in `data/queue/`.
+2. **Transcription:** Audio is routed to `faster-whisper` (int8 quantized) to obtain transcripts. The raw audio is pruned immediately after.
+3. **Structuring:** The transcribed text is sent to the `Phi-3-mini-4k-instruct` SLM via `llama-cpp-python`. The SLM output is constrained to a specific JSON schema.
+4. **Validation & Database Commit:** The JSON schema is validated using Pydantic and committed to a local SQLite database using parameterized queries across 4 normalized tables (`incidents`, `identified_locations`, `identified_personnel`, and `actionable_tasks`).
+
+For more detail, see [spec.md](file:///c:/Users/srees/hackathon_3-1/specs/spec.md), [data-model.md](file:///c:/Users/srees/hackathon_3-1/specs/data-model.md), and [walkthrough.md](file:///c:/Users/srees/hackathon_3-1/specs/walkthrough.md).
+
+---
+
+## 🧠 Memory & Thread Allocation
+
+To protect the host OS from CPU starvation and memory spikes, resources are bounded as follows:
+
+| Resource / Process | Max Memory Allocation | Max Thread Count |
+| :--- | :--- | :--- |
+| **OS Overhead** | ~500 MB | N/A |
+| **faster-whisper (int8)** | ~500 MB | 2 (via `OMP_NUM_THREADS=2`) |
+| **Phi-3-mini-4k (Q4_K_M)** | ~2200 MB | 2 (via `n_threads=2`) |
+| **Python Dashboard & DB** | ~200 MB | 1 |
+| **Total Peak Load** | **~3400 MB** | **Maximum 4 concurrent threads** |
+
+Detailed research and model selection options are located in [research.md](file:///c:/Users/srees/hackathon_3-1/specs/research.md).
+
+---
+
+## 📁 File & Directory Structure
 
 ```
-cd existing_repo
-git remote add origin https://code.swecha.org/arrya.sridhar/hackathon_3.git
-git branch -M main
-git push -uf origin main
+hackathon_3/
+├── .models/                   # [GIT-IGNORED] Model binary directory
+│   ├── whisper/               # faster-whisper configuration & vocab files
+│   └── slm/                   # phi3-mini-4k.gguf binary
+├── data/                      # [GIT-IGNORED] Databases and filesystems
+│   ├── antigravity.db         # SQLite persistent database
+│   ├── cache/                 # Raw ingestion folder
+│   ├── queue/                 # In-flight queue items
+│   └── failed_audio/          # Audio files that timed out or failed validation
+├── specs/                     # Project technical specifications
+│   ├── data-model.md          # Database schema and input models
+│   ├── plan.md                # Environment parity design
+│   ├── quickstart.md          # Step-by-step local setup
+│   ├── research.md            # Hardware & model selections
+│   ├── spec.md                # System boundaries and pipelines
+│   ├── tasks.md               # GitLab task matrix
+│   └── walkthrough.md         # Trace walkthrough of input files
+├── src/                       # Application source code
+│   ├── app/                   # App Shell: queue managers, pipeline CLI
+│   └── engine/                # Inference Engine: transcription, SLM, DB ORM
+└── README.md                  # This file
 ```
 
-## Integrate with your tools
+---
 
-* [Set up project integrations](https://code.swecha.org/arrya.sridhar/hackathon_3/-/settings/integrations)
+## 🚀 Getting Started
 
-## Collaborate with your team
+Ensure you are connected to the network before completing initial setup.
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+### 1. Initialize Folders
+Run the initialization commands to establish the required git-ignored directory layout:
+```bash
+mkdir -p .models/whisper .models/slm data/cache data/queue data/failed_audio
+```
 
-## Test and Deploy
+### 2. Manual Model Deposition
+1. **Whisper Engine**: Download `faster-whisper-base-en` files (`model.bin`, `config.json`, `vocabulary.txt`) and place them in `.models/whisper/`.
+2. **Phi-3 SLM**: Download `Phi-3-mini-4k-instruct-q4.gguf` and place it at `.models/slm/phi3-mini-4k.gguf`.
 
-Use the built-in continuous integration in GitLab.
+### 3. Setup Virtual Environment
+Use `uv` for deterministic, fast builds:
+```bash
+# Install uv dependencies solver
+pip install uv
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+# Initialize and activate Python 3.11 environment
+uv venv -p 3.11
+# Mac/Linux:
+source .venv/bin/activate
+# Windows:
+.venv\Scripts\activate
 
-***
+# Install exact dependencies
+uv pip install -r requirements.txt
+```
 
-# Editing this README
+For full details, review [quickstart.md](file:///c:/Users/srees/hackathon_3-1/specs/quickstart.md) and [plan.md](file:///c:/Users/srees/hackathon_3-1/specs/plan.md).
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+---
 
-## Suggestions for a good README
+## 🛠️ Development Workflow
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+The team is split cleanly into two domains:
 
-## Name
-Choose a self-explaining name for your project.
+* **Developer 1 (Engine Core - `src/engine/`):** Responsible for Whisper ingestion, Phi-3 JSON structuring, and SQLite DB execution.
+* **Developer 2 (App Shell - `src/app/`):** Responsible for watchdogs, queuing, lockfiles, CLI dashboard UI, and CI/CD pipelines.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+Refer to the GitLab Issue board and task list in [tasks.md](file:///c:/Users/srees/hackathon_3-1/specs/tasks.md) for more details.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+---
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## 🛡️ System Resilience & Failbacks
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+* **Queue Backup:** Ingestion spikes are handled via disk-backed files inside `data/queue/`.
+* **Timeout & Graceful Degradation:** Audio files exceeding 120s of processing time are archived to `data/failed_audio/` and marked in the DB as `PENDING_REVIEW`.
+* **OOM Watchdog:** A background worker monitors host RAM. If allocation approaches 3.8GB, the SLM context is pruned, or processing is paused and rescheduled with a backoff delay.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+---
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+## 📄 License
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+This project is licensed under the **GNU General Public License v2.0 (GPL-2.0)** - see the [LICENSE](file:///c:/Users/srees/hackathon_3-1/LICENSE) file for the full text.
