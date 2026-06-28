@@ -418,9 +418,9 @@ def main():
         Layout(name="footer", size=3),
     )
     layout["body"].split_row(
-        Layout(name="system", ratio=1),
-        Layout(name="pipeline", ratio=1.2),
-        Layout(name="incidents", ratio=2.2),
+        Layout(name="system", ratio=5),
+        Layout(name="pipeline", ratio=6),
+        Layout(name="incidents", ratio=11),
     )
 
     console.print("[green]Launching LocalSlate CLI Dashboard...[/green]")
