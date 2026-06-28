@@ -7,7 +7,7 @@ import threading
 import hashlib
 from pathlib import Path
 from src.engine.audio_processor import transcribe_audio, validate_audio_file
-from src.engine.slm_processor import structure_text
+from src.engine.slm_processor import IncidentReport, structure_text
 from src.engine.db import insert_incident
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -140,17 +140,17 @@ def process_file(file_path: Path):
                 logging.error(f"Could not move failed file to failed folder: {move_err}")
                 
         try:
-            fallback_report = {
-                "incident_id": file_hash,
-                "iso_timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "computed_priority_level": "PENDING_REVIEW",
-                "system_summary": f"FAILED PROCESSING: {str(e)[:200]}",
-                "identified_entities": {
+            fallback_report = IncidentReport(
+                incident_id=file_hash,
+                iso_timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                computed_priority_level="HIGH",
+                system_summary=f"FAILED PROCESSING: {str(e)[:200]}",
+                identified_entities={
                     "locations": [],
                     "personnel": []
                 },
-                "actionable_tasks": []
-            }
+                actionable_tasks=[]
+            ).model_dump()
             insert_incident(fallback_report)
         except Exception as db_err:
             logging.error(f"Failed to write failed record to database: {db_err}")
