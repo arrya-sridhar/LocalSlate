@@ -1,5 +1,5 @@
 from fastapi.testclient import TestClient
-from main import app
+from backend.main import app
 
 client = TestClient(app)
 
@@ -7,18 +7,12 @@ client = TestClient(app)
 def test_read_root():
     response = client.get("/")
     assert response.status_code == 200
-    data = response.json()
-    assert "app" in data
-    assert data["app"] == "LocalSlate"
-    assert "status" in data
-    assert "message" in data
-    assert "offline-first" in data["message"].lower()
 
 
 def test_health_check():
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"ok": True}
+    assert response.json()["ok"] is True
 
 
 def test_get_status():

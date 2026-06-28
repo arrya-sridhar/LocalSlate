@@ -64,6 +64,12 @@ CREATE TABLE IF NOT EXISTS actionable_tasks (
 );
 
 -- Optimization indexes for local querying
-CREATE INDEX idx_incidents_priority ON incidents(computed_priority_level);
-CREATE INDEX idx_incidents_timestamp ON incidents(iso_timestamp);
+CREATE INDEX IF NOT EXISTS idx_incidents_priority ON incidents(computed_priority_level);
+CREATE INDEX IF NOT EXISTS idx_incidents_timestamp ON incidents(iso_timestamp);
 ```
+
+## 4. SQLite Journal Optimization
+To guarantee that background thread writers do not block frontend web socket or fetch readers, the SQLite Database Engine runs under:
+* **WAL Mode**: `PRAGMA journal_mode = WAL;`
+* **Foreign Key Constraints**: `PRAGMA foreign_keys = ON;`
+* **Busy Timeout**: 30 seconds to manage concurrent table locks.

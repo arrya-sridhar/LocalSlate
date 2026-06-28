@@ -2,18 +2,17 @@ import pytest
 import sqlite3
 from pathlib import Path
 
-from src.engine.db import DatabaseEngine
-from src.engine.audio_processor import validate_audio_file
-from src.engine.slm_processor import mock_extraction
-from src.engine.models import IncidentReport
+from backend.src.database.db import DatabaseEngine
+from backend.src.engine.audio_processor import validate_audio_file
+from backend.src.engine.slm_processor import mock_extraction
+from backend.src.models.models import IncidentReport
 
 
 def test_db_initialization(tmp_path):
     # Test DB path
     test_db_path = tmp_path / "test_localslate.db"
 
-    db_engine = DatabaseEngine()
-    db_engine.db_path = test_db_path
+    db_engine = DatabaseEngine(db_path=test_db_path)
     db_engine.initialize()
 
     assert test_db_path.exists()
@@ -68,15 +67,16 @@ def test_integration_pipeline_txt(tmp_path, monkeypatch):
     test_queue.mkdir()
     test_failed.mkdir()
 
-    import src.engine.db as db_mod
-    import src.app.queue_manager as qm_mod
+    import backend.src.database.db as db_mod
+    import backend.src.app.queue_manager as qm_mod
 
     monkeypatch.setattr(db_mod, "DB_PATH", test_db)
     monkeypatch.setattr(qm_mod, "CACHE_DIR", test_cache)
     monkeypatch.setattr(qm_mod, "QUEUE_DIR", test_queue)
     monkeypatch.setattr(qm_mod, "FAILED_DIR", test_failed)
 
-    from src.engine.db import init_db, get_latest_incidents
+    from backend.src.database.db import init_db, get_latest_incidents
+    from backend.src.app.queue_manager import process_file
 
     init_db()
 
@@ -85,8 +85,6 @@ def test_integration_pipeline_txt(tmp_path, monkeypatch):
         "FIELD NOTES: High temperature in Sector 7. Cooling array offline. Operative S is on site.",
         encoding="utf-8",
     )
-
-    from src.app.queue_manager import process_file
 
     process_file(test_file)
 
@@ -112,15 +110,16 @@ def test_integration_pipeline_wav(tmp_path, monkeypatch):
     test_queue.mkdir()
     test_failed.mkdir()
 
-    import src.engine.db as db_mod
-    import src.app.queue_manager as qm_mod
+    import backend.src.database.db as db_mod
+    import backend.src.app.queue_manager as qm_mod
 
     monkeypatch.setattr(db_mod, "DB_PATH", test_db)
     monkeypatch.setattr(qm_mod, "CACHE_DIR", test_cache)
     monkeypatch.setattr(qm_mod, "QUEUE_DIR", test_queue)
     monkeypatch.setattr(qm_mod, "FAILED_DIR", test_failed)
 
-    from src.engine.db import init_db, get_latest_incidents
+    from backend.src.database.db import init_db, get_latest_incidents
+    from backend.src.app.queue_manager import process_file
 
     init_db()
 
@@ -131,8 +130,6 @@ def test_integration_pipeline_wav(tmp_path, monkeypatch):
         wav.setframerate(16000)
         for _ in range(16000):
             wav.writeframesraw(struct.pack("<h", 0))
-
-    from src.app.queue_manager import process_file
 
     process_file(test_wav)
 

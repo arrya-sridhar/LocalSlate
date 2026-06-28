@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LocalSlate 🌌 Zero-Trust Offline Intelligence Pipeline</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <h1>LocalSlate 🌌</h1>
+      <span class="brand-badge">Offline-First v2.0.0</span>
+    </div>
+    <div class="controls">
+      <button class="btn" id="theme-toggle" aria-label="Toggle light/dark theme">🌓 Theme</button>
+      <a href="/docs" target="_blank" class="btn btn-primary" id="docs-btn">📖 API Documentation</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- Left Column: Sidebar System Monitors -->
+    <section class="sidebar" aria-label="System status overview">
+      
+      <!-- System Monitor Card -->
+      <article class="card">
+        <h2 class="card-title">🖥️ System Monitor</h2>
+        <div class="stat-group">
+          <div class="stat-item">
+            <span class="stat-label">Network Status:</span>
+            <span class="stat-value" style="color: var(--accent-red); font-weight: 800;">OFFLINE 🚫</span>
+          </div>
+          <div>
+            <div class="stat-item">
+              <span class="stat-label">CPU Utilization:</span>
+              <span class="stat-value" id="cpu-val">0.0%</span>
+            </div>
+            <div class="progress-container">
+              <div class="progress-bar" id="cpu-bar" style="width: 0%;"></div>
+            </div>
+          </div>
+          <div>
+            <div class="stat-item">
+              <span class="stat-label">RAM Allocation:</span>
+              <span class="stat-value" id="ram-val">0.0 GB</span>
+            </div>
+            <div class="progress-container">
+              <div class="progress-bar" id="ram-bar" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Ingest Queue Card -->
+      <article class="card">
+        <h2 class="card-title">⚡ Ingest Queue</h2>
+        <div class="stat-group">
+          <div class="stat-item">
+            <span class="stat-label">Daemon Service:</span>
+            <span class="stat-value" id="queue-daemon-val">Unknown</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Queue Length:</span>
+            <span class="stat-value" id="queue-len-val">0 files</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Processed Success:</span>
+            <span class="stat-value" id="queue-success-val" style="color: var(--accent-green);">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Failed/Timed Out:</span>
+            <span class="stat-value" id="queue-fail-val" style="color: var(--accent-red);">0</span>
+          </div>
+          
+          <div style="margin-top: 0.5rem;">
+            <span class="stat-label">Active Step:</span>
+            <div class="pipeline-timeline">
+              <div class="pipeline-step" id="step-1" title="File Ingest">1
+                <span class="pipeline-step-label">Ingest</span>
+              </div>
+              <div class="pipeline-step" id="step-2" title="Whisper Audio Transcription">2
+                <span class="pipeline-step-label">Whisper</span>
+              </div>
+              <div class="pipeline-step" id="step-3" title="SLM Structured Extraction">3
+                <span class="pipeline-step-label">Phi-3</span>
+              </div>
+              <div class="pipeline-step" id="step-4" title="SQLite Storage Commit">4
+                <span class="pipeline-step-label">Store</span>
+              </div>
+            </div>
+          </div>
+          
+          <div style="margin-top: 1.5rem;" class="stat-item">
+            <span class="stat-label">Current Action:</span>
+            <span class="stat-value" id="queue-action-val" style="color: var(--accent-yellow);">Idle</span>
+          </div>
+        </div>
+      </article>
+
+      <!-- SQLite Storage Card -->
+      <article class="card">
+        <h2 class="card-title">
+          <span>📊 SQLite Database</span>
+          <button class="btn btn-danger btn-icon" id="clear-db-btn" title="Purge database records 🧹" aria-label="Clear database">🧹</button>
+        </h2>
+        <div class="stat-group">
+          <div class="stat-item">
+            <span class="stat-label">Total Reports:</span>
+            <span class="stat-value" id="db-total-val" style="font-size: 1.1rem; color: var(--accent-cyan);">0</span>
+          </div>
+          
+          <div class="sqlite-grid">
+            <div class="sqlite-stat-box crit">
+              <div class="count" id="db-crit-val">0</div>
+              <div class="label">Critical</div>
+            </div>
+            <div class="sqlite-stat-box high">
+              <div class="count" id="db-high-val">0</div>
+              <div class="label">High</div>
+            </div>
+            <div class="sqlite-stat-box med">
+              <div class="count" id="db-med-val">0</div>
+              <div class="label">Medium</div>
+            </div>
+            <div class="sqlite-stat-box low">
+              <div class="count" id="db-low-val">0</div>
+              <div class="label">Low</div>
+            </div>
+          </div>
+        </div>
+      </article>
+      
+    </section>
+
+    <!-- Right Column: Interactive Processing & Ingestion Feed -->
+    <section class="content-area" aria-label="Main content workspace">
+      
+      <!-- Report Submission Panel -->
+      <article class="card">
+        <h2 class="card-title">📝 Field Ingestion Portal</h2>
+        
+        <!-- Text Direct Processing -->
+        <form id="text-process-form" class="form-group">
+          <label class="form-label" for="report-text">Submit Notes Directly for AI Extraction:</label>
+          <textarea class="textarea" id="report-text" placeholder="Type incident notes here... E.g. 'Water leak detected in Server Room B by Agent K. Cooling systems are offline. Urgent evacuation needed.'" required></textarea>
+          <div style="margin-top: 1rem; display: flex; justify-content: flex-end;">
+            <button type="submit" class="btn btn-primary" id="submit-text-btn">⚡ Run Extraction</button>
+          </div>
+        </form>
+        
+        <hr style="border: 0; border-top: 1px solid var(--panel-border); margin: 1.5rem 0;">
+        
+        <!-- File upload portal -->
+        <div>
+          <label class="form-label">Drop Ingest Files (.txt or .wav audio):</label>
+          <div class="upload-zone" id="drop-zone">
+            <div class="upload-icon">📥</div>
+            <p class="upload-text">Drag and drop raw text or audio logs here, or click to upload</p>
+            <input type="file" class="upload-file-input" id="file-input" accept=".txt,.wav">
+          </div>
+        </div>
+      </article>
+
+      <!-- SQLite database records stream -->
+      <article class="card">
+        <h2 class="card-title">
+          <span>🌌 SQLite Database Stream</span>
+          <button class="btn" id="refresh-stream-btn" aria-label="Refresh Database Stream">🔄 Refresh</button>
+        </h2>
+        <div class="incidents-container" id="incidents-feed">
+          <!-- Incident rows will be injected dynamically -->
+          <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+            No records found. Ingest a file to see entries.
+          </div>
+        </div>
+      </article>
+      
+    </section>
+  </main>
+
+  <footer>
+    LocalSlate Zero-Trust Offline Architecture. Running entirely on local hardware. Outbound networking disabled.
+  </footer>
+
+  <div class="toast-container" id="toast-holder"></div>
+
+  <script src="/js/main.js"></script>
+</body>
+</html>

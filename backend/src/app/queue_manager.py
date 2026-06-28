@@ -5,15 +5,16 @@ import threading
 import time
 import uuid
 from pathlib import Path
-
-from src.engine.audio_processor import transcribe_audio
-from src.engine.db import insert_incident
-from src.engine.slm_processor import structure_text
-from src.engine.models import Entities, IncidentReport
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+from backend.src.engine.audio_processor import transcribe_audio
+from backend.src.engine.slm_processor import structure_text
+from backend.src.database.db import insert_incident
+from backend.src.models.models import Entities, IncidentReport
+
+# Resolve project root relative to backend/src/app/queue_manager.py
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 CACHE_DIR = PROJECT_ROOT / "data" / "cache"
 QUEUE_DIR = PROJECT_ROOT / "data" / "queue"
 FAILED_DIR = PROJECT_ROOT / "data" / "failed_audio"
@@ -202,7 +203,7 @@ class AudioFileHandler(FileSystemEventHandler):
 
 
 class QueueManager:
-    def __init__(self, process_callback):
+    def __init__(self, process_callback=process_file):
         self.process_callback = process_callback
         self.observer = Observer()
 

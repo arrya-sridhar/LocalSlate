@@ -27,7 +27,7 @@ def run_check(name, func):
 # Check 1: Trailing Whitespaces
 def check_trailing_whitespace():
     bad_files = []
-    for root, _, files in os.walk("src"):
+    for root, _, files in os.walk("backend/src"):
         for file in files:
             if file.endswith(".py"):
                 path = Path(root) / file
@@ -44,7 +44,7 @@ def check_trailing_whitespace():
 # Check 2: Verify Python AST (Compile check)
 def check_ast_compilation():
     res = subprocess.run(
-        [sys.executable, "-m", "compileall", "-q", "src"], capture_output=True
+        [sys.executable, "-m", "compileall", "-q", "backend/src"], capture_output=True
     )
     if res.returncode != 0:
         return False, res.stderr.decode("utf-8")
@@ -86,7 +86,7 @@ def check_json_files():
 # Check 5: Merge conflict markers checker
 def check_conflict_markers():
     conflict_markers = ["<<<<<<<", "=======", ">>>>>>>"]
-    for root, _, files in os.walk("src"):
+    for root, _, files in os.walk("backend/src"):
         for file in files:
             if file.endswith(".py"):
                 path = Path(root) / file

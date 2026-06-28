@@ -2,19 +2,16 @@ import datetime
 import json
 import logging
 import uuid
+import re
 from pathlib import Path
 from pydantic import ValidationError
-from src.engine.models import IncidentReport
+from backend.src.models.models import IncidentReport
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 SLM_MODEL_PATH = PROJECT_ROOT / ".models" / "slm" / "phi3-mini-4k.gguf"
 
 
 def mock_extraction(text: str) -> dict:
-    import time
-
-    time.sleep(1.5)
-
     text_lower = text.lower()
     priority = "LOW"
     if "critical" in text_lower or "danger" in text_lower:
@@ -25,8 +22,6 @@ def mock_extraction(text: str) -> dict:
         priority = "MEDIUM"
 
     locations = []
-    import re
-
     loc_matches = re.findall(
         r"(sector\s+\d+|room\s+[a-z]|main\s+node|cooling\s+array)", text_lower
     )
@@ -79,7 +74,7 @@ def mock_extraction(text: str) -> dict:
     return report
 
 
-def check_ram_usage():
+def check_ram_usage() -> bool:
     try:
         import psutil
         import os
@@ -97,8 +92,8 @@ def check_ram_usage():
 
 
 class SLMProcessor:
-    def __init__(self):
-        self.model_path = SLM_MODEL_PATH
+    def __init__(self, model_path: Path = SLM_MODEL_PATH):
+        self.model_path = model_path
         self.llm = None
 
         if self.model_path.exists():
@@ -115,7 +110,7 @@ class SLMProcessor:
             except Exception as e:
                 logging.error(f"Failed to load Llama model: {e}")
 
-    def extract_incident(self, text: str) -> dict:  # type: ignore[return]
+    def extract_incident(self, text: str) -> dict:
         if len(text) > 4000:
             logging.warning("Input text exceeds 4000 characters. Truncating context.")
             text = text[:4000]
@@ -190,8 +185,25 @@ class SLMProcessor:
                 logging.error(f"Llama-cpp inference error: {e}")
                 raise e
 
+        # Fallback return
+        report_data = mock_extraction(text)
+        return IncidentReport(**report_data).model_dump()
 
-# Compatibility global functions for our app shell
+
+# Legacy/Compatibility Service structure
+class SLMService(SLMProcessor):
+    pass
+
+
+_global_slm_service = None
+
+
+def get_slm_service() -> SLMService:
+    global _global_slm_service
+    if _global_slm_service is None:
+        _global_slm_service = SLMService()
+    return _global_slm_service
+
+
 def structure_text(text: str) -> dict:
-    processor = SLMProcessor()
-    return processor.extract_incident(text)
+    return get_slm_service().extract_incident(text)

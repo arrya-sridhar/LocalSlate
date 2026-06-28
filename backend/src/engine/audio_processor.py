@@ -3,12 +3,12 @@ import wave
 from pathlib import Path
 import logging
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 WHISPER_MODEL_DIR = PROJECT_ROOT / ".models" / "whisper"
 os.environ["OMP_NUM_THREADS"] = "2"
 
 
-def validate_audio_file(file_path: Path):
+def validate_audio_file(file_path: Path) -> None:
     if not file_path.exists():
         raise FileNotFoundError(f"Audio file does not exist: {file_path}")
 
@@ -31,12 +31,12 @@ def validate_audio_file(file_path: Path):
 
 
 class WhisperProcessor:
-    def __init__(self):
-        self.model_path = WHISPER_MODEL_DIR
+    def __init__(self, model_path: Path = WHISPER_MODEL_DIR):
+        self.model_path = model_path
         self.model_bin = self.model_path / "model.bin"
         self.model = None
 
-        # If real model exists, load it
+        # Load real model if it exists on disk
         if self.model_bin.exists():
             try:
                 from faster_whisper import WhisperModel
@@ -54,14 +54,14 @@ class WhisperProcessor:
     def transcribe(self, audio_path: Path) -> str:
         validate_audio_file(audio_path)
 
-        # Fallback/Mock mode if real model was not loaded
+        # Fallback to mock mode if model was not loaded
         if self.model is None:
             logging.warning(
                 "Whisper model not loaded. Falling back to mock transcription."
             )
             import time
 
-            time.sleep(2.0)
+            time.sleep(1.0)
 
             file_name = audio_path.name.lower()
             if "alpha" in file_name:
@@ -111,7 +111,20 @@ class WhisperProcessor:
         return transcript
 
 
-# Compatibility global functions for our app shell
+# Legacy/Compatibility helper functions
+class AudioService(WhisperProcessor):
+    pass
+
+
+_global_audio_service = None
+
+
+def get_audio_service() -> AudioService:
+    global _global_audio_service
+    if _global_audio_service is None:
+        _global_audio_service = AudioService()
+    return _global_audio_service
+
+
 def transcribe_audio(file_path: Path) -> str:
-    processor = WhisperProcessor()
-    return processor.transcribe(file_path)
+    return get_audio_service().transcribe(file_path)

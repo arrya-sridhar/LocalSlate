@@ -20,9 +20,9 @@ black-check:
     - pip install uv
     - uv venv
     - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r requirements.txt
+    - uv pip install -r backend/requirements.txt
     - uv pip install black
-    - black --check src/ tests/ tools/
+    - black --check backend/src/ backend/main.py tests/ tools/
 
 # Job 2: Code linting (Ruff)
 ruff-check:
@@ -31,9 +31,9 @@ ruff-check:
     - pip install uv
     - uv venv
     - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r requirements.txt
+    - uv pip install -r backend/requirements.txt
     - uv pip install ruff
-    - ruff check src/ tests/ tools/
+    - ruff check backend/src/ backend/main.py tests/ tools/
 
 # Job 3: Type checking (Mypy)
 mypy-check:
@@ -42,9 +42,9 @@ mypy-check:
     - pip install uv
     - uv venv
     - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r requirements.txt
+    - uv pip install -r backend/requirements.txt
     - uv pip install mypy
-    - mypy src/ tests/ tools/
+    - mypy backend/src/ tests/ tools/
 
 # Job 4: Custom Repository Audit Checks (6 checks: AST, YAML, JSON, conflict markers, large files, whitespaces)
 repo-audit:
@@ -53,16 +53,16 @@ repo-audit:
     - pip install uv
     - uv venv
     - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r requirements.txt
+    - uv pip install -r backend/requirements.txt
     - python tools/repo_audit.py
 
-# Job 5: Unit testing (Pytest)
+# Job 5: Unit and Integration testing (Pytest)
 unit-tests:
   stage: test
   script:
     - pip install uv
     - uv venv
     - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r requirements.txt
+    - uv pip install -r backend/requirements.txt
     - uv pip install pytest
-    - python -m pytest
+    - pytest

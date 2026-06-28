@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 
 # Add project root to python path to avoid import errors
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -21,21 +21,21 @@ logging.basicConfig(
     ],
 )
 
-from src.engine.db import (
+from backend.src.database.db import (
     init_db,
     get_latest_incidents,
     DatabaseEngine,
     get_db_stats,
     clear_db,
-)  # noqa: E402
-from src.app.queue_manager import (  # noqa: E402
+)
+from backend.src.app.queue_manager import (
     start_queue_manager,
     stop_queue_manager,
     queue_status,
     get_queue_length,
 )
-from src.engine.audio_processor import WhisperProcessor  # noqa: E402
-from src.engine.slm_processor import SLMProcessor  # noqa: E402
+from backend.src.engine.audio_processor import WhisperProcessor
+from backend.src.engine.slm_processor import SLMProcessor
 
 try:
     from rich.console import Console
@@ -51,7 +51,6 @@ except ImportError:
     HAS_RICH = False
 
 
-# Retain Developer 1's class-based structure from main branch
 class DashboardUI:
     def __init__(self):
         self.status = "Idle"
@@ -91,7 +90,6 @@ class DashboardUI:
             self.status = "Idle"
 
 
-# Our Interactive Console dashboard routines
 def generate_mock_text_file():
     cache_dir = PROJECT_ROOT / "data" / "cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -187,7 +185,6 @@ def draw_system_stats() -> Panel:
     text = Text()
     text.append("⚙️  SYSTEM MONITOR\n", style="bold yellow")
 
-    # CPU Usage
     try:
         import psutil
 
@@ -198,7 +195,6 @@ def draw_system_stats() -> Panel:
     text.append(f"{cpu_usage:.1f}%\n")
     text.append(f"  {make_progress_bar(cpu_usage)}\n\n")
 
-    # RAM Usage
     try:
         import psutil
 
@@ -212,7 +208,6 @@ def draw_system_stats() -> Panel:
     text.append(f"{ram_str}\n")
     text.append(f"  {make_progress_bar(ram_percent)}\n\n")
 
-    # DB Stats
     text.append("📊 SQLITE STORAGE\n", style="bold yellow")
     stats = get_db_stats()
     text.append(f"• Total Saved Incidents: {stats['total']}\n", style="bold cyan")
@@ -237,20 +232,17 @@ def draw_pipeline() -> Panel:
     text = Text()
     text.append("⚡ PIPELINE ORCHESTRATOR\n", style="bold cyan")
 
-    # Ingestion Daemon Status
     manager_state = "ACTIVE 🟢" if queue_status["is_running"] else "STOPPED 🔴"
     manager_color = "green" if queue_status["is_running"] else "red"
     text.append("• Ingest Service: ", style="bold")
     text.append(manager_state + "\n", style=manager_color)
 
-    # Local Cache / Ingest Queue Length
     q_len = get_queue_length()
     text.append("• Ingest Queue: ", style="bold")
     text.append(
         f"{q_len} files pending\n", style="bold yellow" if q_len > 0 else "white"
     )
 
-    # Active File Processing Details
     curr_file = queue_status["current_file"]
     text.append("• Active File:  ", style="bold")
     if curr_file:
@@ -258,7 +250,6 @@ def draw_pipeline() -> Panel:
     else:
         text.append("Idle\n", style="dim white")
 
-    # Processing step timeline (Stage)
     stage_obj = queue_status.get("current_stage", 0)
     stage = int(stage_obj) if isinstance(stage_obj, (int, float)) else 0
     text.append("\n📈 PROCESSING TIMELINE\n", style="bold cyan")
@@ -292,7 +283,6 @@ def draw_pipeline() -> Panel:
     )
     text.append(" Store 💾 \n\n", style=s4_style)
 
-    # Active Stage / Action details
     status_msg = queue_status["current_status"]
     text.append("• Current Action: ", style="bold")
     if status_msg != "Idle":
@@ -304,7 +294,6 @@ def draw_pipeline() -> Panel:
     else:
         text.append("Awaiting input...\n", style="dim white")
 
-    # Metrics Summary
     text.append("\n📊 PIPELINE METRICS\n", style="bold cyan")
     text.append("✓ Processed Success: ", style="bold green")
     text.append(f"{queue_status['processed_count']}\n")
