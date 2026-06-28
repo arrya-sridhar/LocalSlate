@@ -26,6 +26,8 @@ def mock_extraction(text: str) -> dict:
             "injured",
             "casualty",
             "fire",
+            "trapped",
+            "smoke",
         ]
     )
 
@@ -34,6 +36,7 @@ def mock_extraction(text: str) -> dict:
         or "danger" in text_lower
         or "severe" in text_lower
         or "fatality" in text_lower
+        or "trapped" in text_lower
     ):
         priority = "CRITICAL"
     elif (
@@ -48,14 +51,8 @@ def mock_extraction(text: str) -> dict:
 
     # 2. Extract locations
     locations = []
-    # Match capitalized names after prepositions (at, on, in, near)
-    prep_matches = re.findall(
-        r"\b(?:at|on|in|near)\s+([A-Z][a-zA-Z0-9']+(?:\s+[A-Z][a-zA-Z0-9']+)*)", text
-    )
-    for m in prep_matches:
-        locations.append(m.strip())
 
-    # Check specific known locations case-insensitively
+    # Check Gachibowli specific locations first
     if "gachibowli" in text_lower:
         if "flyover" in text_lower:
             locations.append("Gachibowli Flyover")
@@ -64,13 +61,54 @@ def mock_extraction(text: str) -> dict:
         else:
             locations.append("Gachibowli")
 
-    # Existing loc_matches fallback
-    loc_matches = re.findall(
-        r"(sector\s+\d+|room\s+[a-z]|main\s+node|cooling\s+array)", text_lower
-    )
-    for m in loc_matches:
-        locations.append(m.title())
+    # Check for "Building [A-Z]" and "chemical storage"
+    building_match = re.search(r"\b(Building\s+[A-Za-z0-9])\b", text, re.IGNORECASE)
+    if building_match:
+        b_name = building_match.group(1).title()
+        if "chemical storage" in text_lower:
+            locations.append(f"{b_name} - Chemical Storage Room")
+        else:
+            locations.append(b_name)
+    elif "chemical storage" in text_lower:
+        locations.append("Chemical Storage Room")
 
+    # Match explicit isolated rooms (e.g. Room B) - ensure word boundaries so "room of" doesn't match
+    room_match = re.search(r"\broom\s+([A-Za-z0-9])\b", text, re.IGNORECASE)
+    if room_match:
+        r_name = f"Room {room_match.group(1).upper()}"
+        # Avoid duplicate room if it is already part of Building/Chemical Storage Room name
+        if not any(r_name in loc for loc in locations):
+            locations.append(r_name)
+
+    # Match Sector names (e.g. Sector 7, Sector 4)
+    sector_match = re.search(r"\b(sector\s+\d+)\b", text, re.IGNORECASE)
+    if sector_match:
+        locations.append(sector_match.group(1).title())
+
+    # Match specific known concepts
+    if "cooling array" in text_lower:
+        locations.append("Cooling Array")
+
+    # Fallback to general prepositions if no structured locations found
+    if not locations:
+        prep_matches = re.findall(
+            r"\b(?:at|on|in|near)\s+([A-Z][a-zA-Z0-9']+(?:\s+[A-Z][a-zA-Z0-9']+)*)",
+            text,
+        )
+        for m in prep_matches:
+            loc = m.strip()
+            # Filter out dates, times, days, etc.
+            if not re.match(
+                r"^(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|January|February|March|April|May|June|July|August|September|October|November|December|PM|AM)\b",
+                loc,
+                re.IGNORECASE,
+            ):
+                if loc not in locations and not any(
+                    loc in existing for existing in locations
+                ):
+                    locations.append(loc)
+
+    # Default fallback
     if not locations:
         locations = ["Sector 7"] if "sector 7" in text_lower else ["Unknown Area"]
     else:
@@ -83,8 +121,25 @@ def mock_extraction(text: str) -> dict:
                 unique_locations.append(x)
         locations = unique_locations
 
-    # 3. Extract personnel / injured people
+    # 3. Extract personnel
     personnel = []
+
+    # Match counts of workers / trapped people (e.g. Two workers, 2 workers)
+    trapped_count_match = re.search(
+        r"\b((?:\d+|[Tt]wo|[Tt]hree|[Ff]our|[Ff]ive|[Ss]everal))\s+(workers|people|persons|staff|operators|individuals|occupants)\b",
+        text,
+    )
+    if trapped_count_match:
+        personnel.append(
+            f"{trapped_count_match.group(1).lower()} {trapped_count_match.group(2).lower()}"
+        )
+    else:
+        # Check if generic trapped workers/people mentioned
+        trapped_generic = re.search(
+            r"\b(workers|trapped\s+people|trapped\s+workers)\b", text_lower
+        )
+        if trapped_generic:
+            personnel.append(trapped_generic.group(1))
 
     # Case-sensitive name extraction around "injured"
     injured_matches = re.search(
@@ -109,7 +164,7 @@ def mock_extraction(text: str) -> dict:
             if name_cleaned:
                 personnel.append(name_cleaned)
 
-    # Case-insensitive checks for known names
+    # Case-insensitive checks for known names/agents
     for name in [
         "ramesh",
         "suresh",
@@ -121,8 +176,10 @@ def mock_extraction(text: str) -> dict:
         if name in text_lower:
             personnel.append(name.title())
 
-    # Existing pers_matches fallback
-    pers_matches = re.findall(r"(agent\s+[a-z]|operative\s+[a-z])", text_lower)
+    # Existing prefix matching for agents/operatives
+    pers_matches = re.findall(
+        r"\b(agent\s+[a-zA-Z]|operative\s+[a-zA-Z])\b", text_lower
+    )
     for m in pers_matches:
         personnel.append(m.title())
 
@@ -153,10 +210,40 @@ def mock_extraction(text: str) -> dict:
             }
         )
 
+    # Fire department dispatch
+    if any(k in text_lower for k in ["fire", "blaze"]):
+        loc_suffix = f" to {locations[0]}" if locations else ""
+        tasks.append(
+            {
+                "task_desc": f"Dispatch fire department{loc_suffix} to control the fire hazard",
+                "urgency": "CRITICAL",
+            }
+        )
+
+    # Rescue trapped workers
+    if "trapped" in text_lower:
+        workers_count = "trapped"
+        if trapped_count_match:
+            workers_count = f"{trapped_count_match.group(1).lower()} trapped"
+        tasks.append(
+            {
+                "task_desc": f"Rescue {workers_count} workers",
+                "urgency": "CRITICAL",
+            }
+        )
+
     # Emergency medical services
     if any(
         k in text_lower
-        for k in ["ambulance", "medical", "hospital", "paramedics", "injured", "doctor"]
+        for k in [
+            "ambulance",
+            "medical",
+            "hospital",
+            "paramedics",
+            "injured",
+            "trapped",
+            "doctor",
+        ]
     ):
         loc_suffix = f" to {locations[0]}" if locations else ""
         tasks.append(
@@ -166,7 +253,19 @@ def mock_extraction(text: str) -> dict:
             }
         )
 
-    # Police
+    # Evacuation
+    if any(
+        k in text_lower for k in ["smoke", "leak", "fire", "evacuate", "evacuation"]
+    ):
+        loc_suffix = f" from {locations[0]}" if locations else ""
+        tasks.append(
+            {
+                "task_desc": f"Evacuate nearby area{loc_suffix}",
+                "urgency": "CRITICAL",
+            }
+        )
+
+    # Deploy traffic police / police
     if any(k in text_lower for k in ["police", "cop", "traffic police"]):
         loc_suffix = f" to {locations[0]}" if locations else ""
         tasks.append(
@@ -176,17 +275,7 @@ def mock_extraction(text: str) -> dict:
             }
         )
 
-    # Fire department
-    if any(k in text_lower for k in ["fire", "blaze", "smoke"]):
-        loc_suffix = f" to {locations[0]}" if locations else ""
-        tasks.append(
-            {
-                "task_desc": f"Dispatch fire department{loc_suffix} to control the fire hazard",
-                "urgency": "CRITICAL",
-            }
-        )
-
-    # Legacy/Default tasks if nothing matched
+    # Default tasks if nothing else matched
     if not tasks:
         if "cooling" in text_lower:
             tasks.append(

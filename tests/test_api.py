@@ -94,3 +94,53 @@ def test_gachibowli_accident_flow():
     assert "Gachibowli Flyover" in saved_incident["identified_entities"]["locations"]
     assert "Ramesh" in saved_incident["identified_entities"]["personnel"]
     assert "Suresh" in saved_incident["identified_entities"]["personnel"]
+
+
+def test_building_a_fire_flow():
+    # Submit unstructured fire text to POST /process
+    text = "A fire broke out in the chemical storage room of Building A at 3:15 PM. Two workers are trapped inside. Smoke is spreading rapidly."
+    payload = {"text": text}
+    response = client.post("/process", json=payload)
+    assert response.status_code == 200
+    report = response.json()
+    assert "incident_id" in report
+
+    # Assert correct extraction of severity/priority
+    assert report["computed_priority_level"] == "CRITICAL"
+
+    # Assert correct extraction of location
+    assert (
+        "Building A - Chemical Storage Room"
+        in report["identified_entities"]["locations"]
+    )
+
+    # Assert correct extraction of trapped people
+    assert "two workers" in report["identified_entities"]["personnel"]
+
+    # Assert actionable tasks (fire hazard, rescue, ambulance/medical, evacuation)
+    tasks = report["actionable_tasks"]
+    task_descs = [t["task_desc"] for t in tasks]
+
+    assert any(
+        "fire department" in desc and "Building A - Chemical Storage Room" in desc
+        for desc in task_descs
+    )
+    assert any("Rescue two trapped workers" in desc for desc in task_descs)
+    assert any("medical services" in desc or "ambulance" in desc for desc in task_descs)
+    assert any(
+        "Evacuate nearby area" in desc and "Building A - Chemical Storage Room" in desc
+        for desc in task_descs
+    )
+
+    # Retrieve incidents using GET /incidents to ensure it's saved in MySQL
+    get_response = client.get("/incidents")
+    assert get_response.status_code == 200
+    incidents = get_response.json()
+    assert len(incidents) == 1
+    saved_incident = incidents[0]
+    assert saved_incident["incident_id"] == report["incident_id"]
+    assert (
+        "Building A - Chemical Storage Room"
+        in saved_incident["identified_entities"]["locations"]
+    )
+    assert "two workers" in saved_incident["identified_entities"]["personnel"]
