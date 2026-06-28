@@ -1,6 +1,6 @@
 # Chronological Data Flow Trace (Walkthrough)
 
-This document traces the complete lifecycle of a raw audio input through the Antigravity offline architecture.
+This document traces the complete lifecycle of a raw audio input through the LocalSlate offline architecture.
 
 ## Step 1: File Drop & Ingestion
 1.  A user (or an external offline device like a USB stick) drops a file named `field_report_alpha.wav` into the `data/cache/` directory.
