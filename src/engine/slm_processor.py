@@ -1,43 +1,13 @@
+import datetime
 import json
 import logging
-from pathlib import Path
-import datetime
 import uuid
-from typing import List, Literal
-from pydantic import BaseModel, Field, ValidationError
+from pathlib import Path
+from pydantic import ValidationError
+from src.engine.models import IncidentReport
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 SLM_MODEL_PATH = PROJECT_ROOT / ".models" / "slm" / "phi3-mini-4k.gguf"
-
-
-# Pydantic Schemas
-class Task(BaseModel):
-    task_desc: str = Field(..., description="Actionable task description")
-    urgency: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"] = Field(
-        ..., description="Urgency of task"
-    )
-
-
-class Entities(BaseModel):
-    locations: List[str] = Field(
-        default_factory=list, description="List of identified locations"
-    )
-    personnel: List[str] = Field(
-        default_factory=list, description="List of identified personnel"
-    )
-
-
-class IncidentReport(BaseModel):
-    incident_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    iso_timestamp: str = Field(
-        default_factory=lambda: datetime.datetime.utcnow().isoformat() + "Z"
-    )
-    computed_priority_level: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
-    system_summary: str = Field(
-        ..., description="Brief 2-sentence summary of the incident"
-    )
-    identified_entities: Entities
-    actionable_tasks: List[Task] = Field(default_factory=list)
 
 
 def mock_extraction(text: str) -> dict:
@@ -112,11 +82,16 @@ def mock_extraction(text: str) -> dict:
 def check_ram_usage():
     try:
         import psutil
+        import os
 
-        mem = psutil.virtual_memory()
-        if mem.used > 3.8 * 1024 * 1024 * 1024 or mem.percent > 95:
+        process = psutil.Process(os.getpid())
+        process_mem = process.memory_info().rss
+        if process_mem > 3.8 * 1024 * 1024 * 1024:
             return True
-    except ImportError:
+        mem = psutil.virtual_memory()
+        if mem.percent > 95:
+            return True
+    except Exception:
         pass
     return False
 
@@ -220,6 +195,3 @@ class SLMProcessor:
 def structure_text(text: str) -> dict:
     processor = SLMProcessor()
     return processor.extract_incident(text)
-
-
-raise RuntimeError("SLM extraction failed unexpectedly")

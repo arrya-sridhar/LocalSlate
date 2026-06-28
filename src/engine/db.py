@@ -1,29 +1,10 @@
 import sqlite3
 from pathlib import Path
-from pydantic import BaseModel, Field
+from src.engine.models import IncidentReport
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 DB_PATH = DATA_DIR / "localslate.db"
-
-
-class ActionableTask(BaseModel):
-    task_desc: str
-    urgency: str
-
-
-class IdentifiedEntities(BaseModel):
-    locations: list[str] = Field(default_factory=list)
-    personnel: list[str] = Field(default_factory=list)
-
-
-class IncidentReport(BaseModel):
-    incident_id: str
-    iso_timestamp: str
-    computed_priority_level: str
-    system_summary: str
-    identified_entities: IdentifiedEntities
-    actionable_tasks: list[ActionableTask] = Field(default_factory=list)
 
 
 class DatabaseEngine:
@@ -179,3 +160,44 @@ def get_latest_incidents(limit=5):
         return []
     finally:
         conn.close()
+
+
+def get_db_stats() -> dict:
+    db = DatabaseEngine()
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    stats = {
+        "total": 0,
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0,
+    }
+    try:
+        cursor.execute("SELECT COUNT(*) FROM incidents;")
+        stats["total"] = cursor.fetchone()[0]
+
+        cursor.execute(
+            "SELECT computed_priority_level, COUNT(*) FROM incidents GROUP BY computed_priority_level;"
+        )
+        for row in cursor.fetchall():
+            priority = row[0]
+            count = row[1]
+            if priority in stats:
+                stats[priority] = count
+    except Exception:
+        pass
+    finally:
+        conn.close()
+    return stats
+
+
+def clear_db() -> None:
+    db = DatabaseEngine()
+    with db.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM identified_locations;")
+        cursor.execute("DELETE FROM identified_personnel;")
+        cursor.execute("DELETE FROM actionable_tasks;")
+        cursor.execute("DELETE FROM incidents;")
+        conn.commit()

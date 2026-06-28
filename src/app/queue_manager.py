@@ -8,7 +8,8 @@ from pathlib import Path
 
 from src.engine.audio_processor import transcribe_audio
 from src.engine.db import insert_incident
-from src.engine.slm_processor import Entities, IncidentReport, structure_text
+from src.engine.slm_processor import structure_text
+from src.engine.models import Entities, IncidentReport
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
@@ -24,6 +25,7 @@ queue_status: dict[str, object] = {
     "is_running": False,
     "current_file": None,
     "current_status": "Idle",
+    "current_stage": 0,
     "queue_count": 0,
     "processed_count": 0,
     "failed_count": 0,
@@ -102,23 +104,29 @@ def process_file(file_path: Path) -> None:
 
     try:
         if suffix == ".wav":
-            queue_status["current_status"] = "Transcribing..."
+            queue_status["current_stage"] = 1
+            queue_status["current_status"] = "Ingesting..."
             logging.info(f"Processing audio incident {file_hash}...")
 
+            queue_status["current_stage"] = 2
+            queue_status["current_status"] = "Transcribing..."
             transcript, err = run_with_timeout(transcribe_audio, (dest_path,), 120.0)
             if err:
                 logging.error(f"Audio processing error/timeout: {err}")
                 raise err
 
+            queue_status["current_stage"] = 3
             queue_status["current_status"] = "Structuring..."
             report = structure_text(transcript)
             report["incident_id"] = file_hash
 
+            queue_status["current_stage"] = 4
             queue_status["current_status"] = "Saving to Database..."
             insert_incident(report)
             increment_status_counter("processed_count")
 
         elif suffix == ".txt":
+            queue_status["current_stage"] = 1
             queue_status["current_status"] = "Reading Text..."
             logging.info(f"Processing text incident {file_hash}...")
 
@@ -129,10 +137,12 @@ def process_file(file_path: Path) -> None:
                 logging.warning("Text file exceeds 4000 char limit. Truncating.")
                 text = text[:4000]
 
+            queue_status["current_stage"] = 3
             queue_status["current_status"] = "Structuring..."
             report = structure_text(text)
             report["incident_id"] = file_hash
 
+            queue_status["current_stage"] = 4
             queue_status["current_status"] = "Saving to Database..."
             insert_incident(report)
 
@@ -173,6 +183,7 @@ def process_file(file_path: Path) -> None:
             lock_path.unlink()
         queue_status["current_file"] = None
         queue_status["current_status"] = "Idle"
+        queue_status["current_stage"] = 0
 
 
 class AudioFileHandler(FileSystemEventHandler):

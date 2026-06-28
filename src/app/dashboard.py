@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 import sys
 import time
 import logging
@@ -20,7 +21,13 @@ logging.basicConfig(
     ],
 )
 
-from src.engine.db import init_db, get_latest_incidents, DatabaseEngine  # noqa: E402
+from src.engine.db import (
+    init_db,
+    get_latest_incidents,
+    DatabaseEngine,
+    get_db_stats,
+    clear_db,
+)  # noqa: E402
 from src.app.queue_manager import (  # noqa: E402
     start_queue_manager,
     stop_queue_manager,
@@ -37,6 +44,7 @@ try:
     from rich.table import Table
     from rich.text import Text
     from rich.live import Live
+    from rich.align import Align
 
     HAS_RICH = True
 except ImportError:
@@ -132,6 +140,18 @@ def get_keypress():
     return None
 
 
+def make_progress_bar(percentage: float, width: int = 15) -> str:
+    filled = int(max(0.0, min(100.0, percentage)) / 100 * width)
+    empty = width - filled
+    bar = "█" * filled + "░" * empty
+    color = "green"
+    if percentage > 85:
+        color = "red"
+    elif percentage > 60:
+        color = "yellow"
+    return f"[{color}]{bar}[/{color}] {percentage:.1f}%"
+
+
 def check_ram_string():
     try:
         import psutil
@@ -145,77 +165,194 @@ def check_ram_string():
 
 
 def draw_header() -> Panel:
-    text = Text(
-        "LocalSlate - Offline-First Intelligence Dashboard 🌌", style="bold magenta"
+    table = Table.grid(expand=True)
+    table.add_column("title")
+    table.add_column("status", justify="right")
+
+    title_text = Text.assemble(
+        Text("🌌 LocalSlate  ", style="bold magenta"),
+        Text("⬢  Zero-Trust Offline Incident Pipeline", style="cyan dim"),
     )
-    text.append(
-        "\nCPU-Bound Inference Engine Pipeline | Offline Mode", style="cyan dim"
+    status_text = Text.assemble(
+        Text("🚫 NETWORK DISCONNECTED ", style="bold red"),
+        Text(" ❘  ⚙️  threads: 4 max", style="dim white"),
+        Text(" ❘  🕒 "),
+        Text(time.strftime("%Y-%m-%d %H:%M:%S"), style="bold green"),
     )
-    return Panel(text, border_style="blue")
+    table.add_row(title_text, status_text)
+    return Panel(table, border_style="magenta")
 
 
-def draw_status() -> Panel:
-    status_text = Text()
-    status_text.append("SYSTEM STATUS\n", style="bold yellow")
+def draw_system_stats() -> Panel:
+    text = Text()
+    text.append("⚙️  SYSTEM MONITOR\n", style="bold yellow")
 
-    manager_state = "RUNNING" if queue_status["is_running"] else "STOPPED"
+    # CPU Usage
+    try:
+        import psutil
+
+        cpu_usage = psutil.cpu_percent()
+    except Exception:
+        cpu_usage = 0.0
+    text.append("• CPU Utilization: ", style="bold")
+    text.append(f"{cpu_usage:.1f}%\n")
+    text.append(f"  {make_progress_bar(cpu_usage)}\n\n")
+
+    # RAM Usage
+    try:
+        import psutil
+
+        mem = psutil.virtual_memory()
+        ram_percent = mem.percent
+        ram_str = f"{mem.used / (1024**3):.2f}/{mem.total / (1024**3):.2f} GB"
+    except Exception:
+        ram_percent = 0.0
+        ram_str = "Unknown"
+    text.append("• RAM Allocation: ", style="bold")
+    text.append(f"{ram_str}\n")
+    text.append(f"  {make_progress_bar(ram_percent)}\n\n")
+
+    # DB Stats
+    text.append("📊 SQLITE STORAGE\n", style="bold yellow")
+    stats = get_db_stats()
+    text.append(f"• Total Saved Incidents: {stats['total']}\n", style="bold cyan")
+    text.append("  ↳ ")
+    text.append("🔴 Crit: ", style="red")
+    text.append(f"{stats['CRITICAL']}  ")
+    text.append("🟠 High: ", style="orange3")
+    text.append(f"{stats['HIGH']}  ")
+    text.append("🟡 Med: ", style="yellow")
+    text.append(f"{stats['MEDIUM']}  ")
+    text.append("🟢 Low: ", style="green")
+    text.append(f"{stats['LOW']}\n")
+
+    return Panel(
+        text,
+        border_style="yellow",
+        title="[bold yellow]Resources & Storage[/bold yellow]",
+    )
+
+
+def draw_pipeline() -> Panel:
+    text = Text()
+    text.append("⚡ PIPELINE ORCHESTRATOR\n", style="bold cyan")
+
+    # Ingestion Daemon Status
+    manager_state = "ACTIVE 🟢" if queue_status["is_running"] else "STOPPED 🔴"
     manager_color = "green" if queue_status["is_running"] else "red"
-    status_text.append("• Ingestion Service: ", style="bold")
-    status_text.append(f"{manager_state}\n", style=manager_color)
+    text.append("• Ingest Service: ", style="bold")
+    text.append(manager_state + "\n", style=manager_color)
 
-    status_text.append("• Active File: ", style="bold")
+    # Local Cache / Ingest Queue Length
+    q_len = get_queue_length()
+    text.append("• Ingest Queue: ", style="bold")
+    text.append(
+        f"{q_len} files pending\n", style="bold yellow" if q_len > 0 else "white"
+    )
+
+    # Active File Processing Details
     curr_file = queue_status["current_file"]
-    status_text.append(f"{curr_file or 'None'}\n", style="cyan")
+    text.append("• Active File:  ", style="bold")
+    if curr_file:
+        text.append(f"{curr_file}\n", style="bold magenta")
+    else:
+        text.append("Idle\n", style="dim white")
 
-    status_text.append("• Pipeline Step: ", style="bold")
-    status_text.append(
-        f"{queue_status['current_status']}\n",
-        style="bold green" if queue_status["current_status"] != "Idle" else "white",
+    # Processing step timeline (Stage)
+    stage_obj = queue_status.get("current_stage", 0)
+    stage = int(stage_obj) if isinstance(stage_obj, (int, float)) else 0
+    text.append("\n📈 PROCESSING TIMELINE\n", style="bold cyan")
+
+    s1_style = (
+        "bold blink cyan" if stage == 1 else ("bold cyan" if stage > 1 else "dim white")
     )
+    text.append(" Ingest 📥 ", style=s1_style)
+    text.append("➔", style="dim white")
 
-    status_text.append("• Local Ingest Queue: ", style="bold")
-    status_text.append(f"{get_queue_length()} pending\n", style="yellow")
-
-    status_text.append("• RAM Allocation: ", style="bold")
-    status_text.append(f"{check_ram_string()}\n", style="white")
-
-    status_text.append("• CPU Threads: ", style="bold")
-    status_text.append("4 Max (2 Whisper, 2 SLM)\n\n", style="white")
-
-    status_text.append("METRICS\n", style="bold yellow")
-    status_text.append(
-        f"✓ Processed: {queue_status['processed_count']}\n", style="bold green"
+    s2_style = (
+        "bold blink magenta"
+        if stage == 2
+        else ("bold magenta" if stage > 2 else "dim white")
     )
-    status_text.append(
-        f"✗ Failed/Pending: {queue_status['failed_count']}\n", style="bold red"
-    )
+    text.append(" Whisper 🎙️ ", style=s2_style)
+    text.append("➔", style="dim white")
 
-    return Panel(status_text, border_style="yellow")
+    s3_style = (
+        "bold blink yellow"
+        if stage == 3
+        else ("bold yellow" if stage > 3 else "dim white")
+    )
+    text.append(" Phi-3 🧠 ", style=s3_style)
+    text.append("➔", style="dim white")
+
+    s4_style = (
+        "bold blink green"
+        if stage == 4
+        else ("bold green" if stage > 4 else "dim white")
+    )
+    text.append(" Store 💾 \n\n", style=s4_style)
+
+    # Active Stage / Action details
+    status_msg = queue_status["current_status"]
+    text.append("• Current Action: ", style="bold")
+    if status_msg != "Idle":
+        text.append(f"{status_msg} ", style="bold yellow")
+        spinners = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        spin_idx = int(time.time() * 5) % len(spinners)
+        text.append(spinners[spin_idx], style="bold yellow")
+        text.append("\n")
+    else:
+        text.append("Awaiting input...\n", style="dim white")
+
+    # Metrics Summary
+    text.append("\n📊 PIPELINE METRICS\n", style="bold cyan")
+    text.append("✓ Processed Success: ", style="bold green")
+    text.append(f"{queue_status['processed_count']}\n")
+    text.append("✗ Processed Failures: ", style="bold red")
+    text.append(f"{queue_status['failed_count']}\n")
+
+    return Panel(
+        text, border_style="cyan", title="[bold cyan]Pipeline Monitor[/bold cyan]"
+    )
 
 
 def draw_incidents() -> Panel:
-    table = Table(expand=True)
-    table.add_column("Incident ID", style="dim", width=12)
-    table.add_column("Timestamp", width=15)
-    table.add_column("Priority", width=10)
-    table.add_column("Locations", width=15)
-    table.add_column("Personnel", width=15)
-    table.add_column("Summary", style="white")
-
     incidents = get_latest_incidents(5)
+
+    if not incidents:
+        text = Text(
+            "\n\n📭 SQLite Database is Empty\n", style="bold yellow justify=center"
+        )
+        text.append(
+            "Drop text/audio files, or press [T]/[A] to ingest mock data.",
+            style="dim white justify=center",
+        )
+        return Panel(
+            Align.center(text, vertical="middle"),
+            border_style="green",
+            title="[bold green]SQLite Database Stream[/bold green]",
+        )
+
+    table = Table(expand=True)
+    table.add_column("ID (Hash)", style="dim", width=10)
+    table.add_column("Timestamp", width=19)
+    table.add_column("Priority", width=12)
+    table.add_column("Locations", width=16)
+    table.add_column("Personnel", width=16)
+    table.add_column("System Summary", style="white")
+
     for inc in incidents:
         priority = inc["computed_priority_level"]
-        color = "white"
         if priority == "CRITICAL":
-            color = "bold red"
+            p_text = Text("🔴 CRITICAL", style="bold red")
         elif priority == "HIGH":
-            color = "bold orange3"
+            p_text = Text("🟠 HIGH", style="bold orange3")
         elif priority == "MEDIUM":
-            color = "yellow"
+            p_text = Text("🟡 MEDIUM", style="yellow")
         elif priority == "LOW":
-            color = "green"
-        elif priority == "PENDING_REVIEW":
-            color = "bold red blinking"
+            p_text = Text("🟢 LOW", style="green")
+        else:
+            p_text = Text(f"⚪ {priority}", style="white")
 
         locations = ", ".join(inc["identified_entities"]["locations"])
         personnel = ", ".join(inc["identified_entities"]["personnel"])
@@ -223,23 +360,45 @@ def draw_incidents() -> Panel:
         table.add_row(
             inc["incident_id"][:8] + "...",
             inc["iso_timestamp"][:19].replace("T", " "),
-            Text(priority, style=color),
+            p_text,
             locations if locations else "N/A",
             personnel if personnel else "N/A",
             inc["system_summary"],
         )
-    return Panel(table, border_style="green", title="Latest SQLite Database Records")
+
+    return Panel(
+        table,
+        border_style="green",
+        title="[bold green]SQLite Database Stream (Latest 5)[/bold green]",
+    )
 
 
-def draw_footer() -> Panel:
-    text = Text()
-    text.append("[Q]", style="bold red")
-    text.append(" Quit  |  ", style="white")
-    text.append("[T]", style="bold green")
-    text.append(" Drop Mock Text File  |  ", style="white")
-    text.append("[A]", style="bold blue")
-    text.append(" Drop Mock WAV Audio File", style="white")
-    return Panel(text, border_style="cyan")
+def draw_footer(message: str = "") -> Panel:
+    table = Table.grid(expand=True)
+    table.add_column("shortcuts")
+    table.add_column("msg", justify="right")
+
+    shortcuts = Text()
+    shortcuts.append("[Q]", style="bold red")
+    shortcuts.append(" Quit  ❘  ", style="white")
+    shortcuts.append("[T]", style="bold green")
+    shortcuts.append(" Ingest Text  ❘  ", style="white")
+    shortcuts.append("[A]", style="bold blue")
+    shortcuts.append(" Ingest WAV Audio  ❘  ", style="white")
+    shortcuts.append("[C]", style="bold yellow")
+    shortcuts.append(" Clear Database 🧹", style="white")
+
+    msg_text = Text(
+        message,
+        style=(
+            "bold green"
+            if ("Success" in message or "Cleared" in message or "Purged" in message)
+            else "bold yellow"
+        ),
+    )
+
+    table.add_row(shortcuts, msg_text)
+    return Panel(table, border_style="cyan")
 
 
 def main():
@@ -259,25 +418,26 @@ def main():
         Layout(name="footer", size=3),
     )
     layout["body"].split_row(
-        Layout(name="status", ratio=1), Layout(name="incidents", ratio=3)
+        Layout(name="system", ratio=1),
+        Layout(name="pipeline", ratio=1.2),
+        Layout(name="incidents", ratio=2.2),
     )
 
     console.print("[green]Launching LocalSlate CLI Dashboard...[/green]")
 
     message = ""
-    message_time = 0
+    message_time = 0.0
 
     try:
         with Live(layout, screen=True, refresh_per_second=4):
             while True:
                 layout["header"].update(draw_header())
-                layout["status"].update(draw_status())
+                layout["system"].update(draw_system_stats())
+                layout["pipeline"].update(draw_pipeline())
                 layout["incidents"].update(draw_incidents())
 
-                footer_panel = draw_footer()
-                if time.time() - message_time < 3.0:
-                    footer_panel.subtitle = message
-                layout["footer"].update(footer_panel)
+                msg_display = message if time.time() - message_time < 3.0 else ""
+                layout["footer"].update(draw_footer(msg_display))
 
                 kp = get_keypress()
                 if kp == "q":
@@ -289,6 +449,10 @@ def main():
                 elif kp == "a":
                     fname = generate_mock_audio_file()
                     message = f"Success: Ingested WAV {fname} into cache."
+                    message_time = time.time()
+                elif kp == "c":
+                    clear_db()
+                    message = "Success: Purged SQLite database records."
                     message_time = time.time()
 
                 time.sleep(0.1)

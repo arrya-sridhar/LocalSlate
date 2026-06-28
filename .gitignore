@@ -1,13 +1,14 @@
-<<<<<<< HEAD
 # Python
 __pycache__/
 *.py[cod]
 .venv/
 .mypy_cache/
 .pytest_cache/
+.ruff_cache/
 
-# Local State
+# Local Slate State
 data/*.db
+data/*.sqlite
 data/*.sqlite3
 data/cache/*
 data/queue/*
@@ -25,10 +26,3 @@ data/failed_audio/*
 # OS generated files
 .DS_Store
 Thumbs.db
-=======
-__pycache__/
-*.py[cod]
-*.db
-*.sqlite
-*.sqlite3
->>>>>>> dc0bf258ca77acc42e1214cdd61089ff33906839
