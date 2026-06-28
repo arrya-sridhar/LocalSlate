@@ -1,0 +1,16 @@
+{
+  "incident_id": "string",
+  "iso_timestamp": "string",
+  "computed_priority_level": "LOW | MEDIUM | HIGH | CRITICAL",
+  "system_summary": "string",
+  "identified_entities": {
+    "locations": ["string"],
+    "personnel": ["string"]
+  },
+  "actionable_tasks": [
+    {
+      "task_desc": "string",
+      "urgency": "LOW | MEDIUM | HIGH | CRITICAL"
+    }
+  ]
+}
