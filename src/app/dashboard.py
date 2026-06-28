@@ -21,8 +21,10 @@ logging.basicConfig(
     ]
 )
 
-from src.engine.db import init_db, get_latest_incidents
+from src.engine.db import init_db, get_latest_incidents, DatabaseEngine
 from src.app.queue_manager import start_queue_manager, stop_queue_manager, queue_status, get_queue_length
+from src.engine.audio_processor import WhisperProcessor
+from src.engine.slm_processor import SLMProcessor
 
 try:
     from rich.console import Console
@@ -31,11 +33,50 @@ try:
     from rich.table import Table
     from rich.text import Text
     from rich.live import Live
-    from rich.ansi import AnsiDecoder
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False
 
+# Retain Developer 1's class-based structure from main branch
+class DashboardUI:
+    def __init__(self):
+        self.status = "Idle"
+        self.db = DatabaseEngine()
+        self.whisper = None
+        self.slm = None
+
+    def initialize_models(self):
+        if self.whisper is None:
+            self.status = "Loading Whisper (int8)..."
+            self.whisper = WhisperProcessor()
+        if self.slm is None:
+            self.status = "Loading Phi-3 (4k)..."
+            self.slm = SLMProcessor()
+        self.status = "Idle"
+
+    def process_file(self, file_path: Path, lock_path: Path):
+        self.initialize_models()
+        try:
+            transcription = ""
+            if file_path.suffix.lower() == ".wav":
+                self.status = f"Transcribing: {file_path.name}"
+                transcription = self.whisper.transcribe(file_path)
+            elif file_path.suffix.lower() == ".txt":
+                transcription = file_path.read_text(encoding="utf-8")
+            
+            if transcription:
+                self.status = "Extracting JSON schema..."
+                json_data = self.slm.extract_incident(transcription)
+                self.status = "Writing to database..."
+                self.db.insert_incident(json_data)
+        except Exception as e:
+            logging.error(f"DashboardUI process_file error: {e}")
+        finally:
+            if lock_path.exists():
+                lock_path.unlink()
+            self.status = "Idle"
+
+# Our Interactive Console dashboard routines
 def generate_mock_text_file():
     cache_dir = PROJECT_ROOT / "data" / "cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -57,15 +98,12 @@ def generate_mock_audio_file():
     filename = f"report_audio_beta_{int(time.time())}.wav"
     filepath = cache_dir / filename
     
-    # Generate 1 second of silence WAV (16kHz, mono, 16-bit PCM)
     with wave.open(str(filepath), "wb") as wav:
         wav.setnchannels(1)
-        wav.setsampwidth(2)  # 16-bit PCM
+        wav.setsampwidth(2)
         wav.setframerate(16000)
-        # Write 16000 silent frames
         for _ in range(16000):
             wav.writeframesraw(struct.pack("<h", 0))
-            
     return filename
 
 def get_keypress():
@@ -74,7 +112,6 @@ def get_keypress():
         if msvcrt.kbhit():
             ch = msvcrt.getch()
             try:
-                # Handle special keys/arrows which return 2 bytes
                 if ch in (b'\x00', b'\xe0'):
                     msvcrt.getch()
                     return None
@@ -96,7 +133,7 @@ def check_ram_string():
 def draw_header() -> Panel:
     text = Text("LocalSlate - Offline-First Intelligence Dashboard 🌌", style="bold magenta")
     text.append("\nCPU-Bound Inference Engine Pipeline | Offline Mode", style="cyan dim")
-    return Panel(text, border_style="blue", title="System Title")
+    return Panel(text, border_style="blue")
 
 def draw_status() -> Panel:
     status_text = Text()
@@ -127,7 +164,7 @@ def draw_status() -> Panel:
     status_text.append(f"✓ Processed: {queue_status['processed_count']}\n", style="bold green")
     status_text.append(f"✗ Failed/Pending: {queue_status['failed_count']}\n", style="bold red")
     
-    return Panel(status_text, border_style="yellow", title="Core Status")
+    return Panel(status_text, border_style="yellow")
 
 def draw_incidents() -> Panel:
     table = Table(expand=True)
@@ -164,7 +201,6 @@ def draw_incidents() -> Panel:
             personnel if personnel else "N/A",
             inc["system_summary"]
         )
-        
     return Panel(table, border_style="green", title="Latest SQLite Database Records")
 
 def draw_footer() -> Panel:
@@ -175,7 +211,7 @@ def draw_footer() -> Panel:
     text.append(" Drop Mock Text File  |  ", style="white")
     text.append("[A]", style="bold blue")
     text.append(" Drop Mock WAV Audio File", style="white")
-    return Panel(text, border_style="cyan", title="Controls")
+    return Panel(text, border_style="cyan")
 
 def main():
     if not HAS_RICH:
@@ -183,10 +219,7 @@ def main():
         print("Please install dependencies: pip install rich psutil pydantic")
         sys.exit(1)
         
-    # Create SQLite and directory structures
     init_db()
-    
-    # Start background ingestion
     start_queue_manager()
     
     console = Console()
@@ -209,18 +242,15 @@ def main():
     try:
         with Live(layout, screen=True, refresh_per_second=4):
             while True:
-                # Update layout components
                 layout["header"].update(draw_header())
                 layout["status"].update(draw_status())
                 layout["incidents"].update(draw_incidents())
                 
-                # Show temp alerts in footer if any
                 footer_panel = draw_footer()
                 if time.time() - message_time < 3.0:
                     footer_panel.subtitle = message
                 layout["footer"].update(footer_panel)
                 
-                # Check for keyboard inputs
                 kp = get_keypress()
                 if kp == "q":
                     break

@@ -4,10 +4,13 @@ import uuid
 import time
 import logging
 import threading
+import hashlib
 from pathlib import Path
 from src.engine.audio_processor import transcribe_audio, validate_audio_file
 from src.engine.slm_processor import structure_text
 from src.engine.db import insert_incident
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 CACHE_DIR = PROJECT_ROOT / "data" / "cache"
@@ -30,7 +33,6 @@ queue_status = {
 
 def get_queue_length():
     try:
-        # Count non-lock files in queue directory
         files = [f for f in QUEUE_DIR.iterdir() if f.is_file() and not f.name.endswith(".lock")]
         return len(files)
     except Exception:
@@ -57,17 +59,23 @@ def run_with_timeout(func, args, timeout):
     return res[0], None
 
 def process_file(file_path: Path):
-    incident_id = str(uuid.uuid4())
-    lock_path = QUEUE_DIR / f"{incident_id}.lock"
-    
-    # Establish lockfile
+    try:
+        hasher = hashlib.md5()
+        with open(file_path, 'rb') as f:
+            buf = f.read(65536)
+            while len(buf) > 0:
+                hasher.update(buf)
+                buf = f.read(65536)
+        file_hash = hasher.hexdigest()
+    except Exception:
+        file_hash = str(uuid.uuid4())
+        
+    lock_path = QUEUE_DIR / f"{file_hash}.lock"
     lock_path.touch()
     
-    # Determine type and target path
     suffix = file_path.suffix.lower()
-    dest_path = QUEUE_DIR / f"{incident_id}{suffix}"
+    dest_path = QUEUE_DIR / f"{file_hash}{suffix}"
     
-    # Move to queue folder
     try:
         shutil.move(str(file_path), str(dest_path))
     except Exception as e:
@@ -80,31 +88,26 @@ def process_file(file_path: Path):
     
     try:
         if suffix == ".wav":
-            # Audio pipeline
             queue_status["current_status"] = "Transcribing..."
-            logging.info(f"Processing audio incident {incident_id}...")
+            logging.info(f"Processing audio incident {file_hash}...")
             
-            # Transcription with 120s timeout limit
             transcript, err = run_with_timeout(transcribe_audio, (dest_path,), 120.0)
-            
             if err:
                 logging.error(f"Audio processing error/timeout: {err}")
                 raise err
                 
             queue_status["current_status"] = "Structuring..."
             report = structure_text(transcript)
-            report["incident_id"] = incident_id
+            report["incident_id"] = file_hash
             
             queue_status["current_status"] = "Saving to Database..."
             insert_incident(report)
             queue_status["processed_count"] += 1
             
         elif suffix == ".txt":
-            # Text pipeline
             queue_status["current_status"] = "Reading Text..."
-            logging.info(f"Processing text incident {incident_id}...")
+            logging.info(f"Processing text incident {file_hash}...")
             
-            # Read plain text with max 4000 char validation
             with open(dest_path, "r", encoding="utf-8") as f:
                 text = f.read(4010)
                 
@@ -114,12 +117,11 @@ def process_file(file_path: Path):
                 
             queue_status["current_status"] = "Structuring..."
             report = structure_text(text)
-            report["incident_id"] = incident_id
+            report["incident_id"] = file_hash
             
             queue_status["current_status"] = "Saving to Database..."
             insert_incident(report)
             
-            # Delete text file post-processing
             dest_path.unlink()
             queue_status["processed_count"] += 1
             
@@ -127,10 +129,9 @@ def process_file(file_path: Path):
             raise ValueError(f"Unsupported file format: {suffix}")
             
     except Exception as e:
-        logging.error(f"Failed to process incident {incident_id}: {e}")
+        logging.error(f"Failed to process incident {file_hash}: {e}")
         queue_status["failed_count"] += 1
         
-        # Save failed files for review
         if dest_path.exists():
             failed_dest = FAILED_DIR / dest_path.name
             try:
@@ -138,10 +139,9 @@ def process_file(file_path: Path):
             except Exception as move_err:
                 logging.error(f"Could not move failed file to failed folder: {move_err}")
                 
-        # Insert PENDING_REVIEW placeholder in database
         try:
             fallback_report = {
-                "incident_id": incident_id,
+                "incident_id": file_hash,
                 "iso_timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "computed_priority_level": "PENDING_REVIEW",
                 "system_summary": f"FAILED PROCESSING: {str(e)[:200]}",
@@ -156,39 +156,53 @@ def process_file(file_path: Path):
             logging.error(f"Failed to write failed record to database: {db_err}")
             
     finally:
-        # Release lockfile
         if lock_path.exists():
             lock_path.unlink()
         queue_status["current_file"] = None
         queue_status["current_status"] = "Idle"
 
-def poll_cache():
-    while queue_status["is_running"]:
-        try:
-            # Poll CACHE_DIR for new files
-            files = [f for f in CACHE_DIR.iterdir() if f.is_file() and f.suffix.lower() in [".wav", ".txt"]]
-            queue_status["queue_count"] = get_queue_length() + len(files)
-            
-            for file in files:
-                # Basic check to avoid reading files while writing is in progress
-                initial_size = file.stat().st_size
-                time.sleep(0.5)
-                if file.exists() and file.stat().st_size == initial_size:
-                    process_file(file)
-                    
-        except Exception as e:
-            logging.error(f"Error in poll_cache loop: {e}")
-            
-        time.sleep(1.0)
+class AudioFileHandler(FileSystemEventHandler):
+    def __init__(self, callback):
+        self.callback = callback
+
+    def on_created(self, event):
+        if event.is_directory:
+            return
+        file_path = Path(event.src_path)
+        if file_path.suffix.lower() in [".wav", ".txt"]:
+            time.sleep(1.0)
+            if file_path.exists():
+                self.callback(file_path)
+
+class QueueManager:
+    def __init__(self, process_callback):
+        self.process_callback = process_callback
+        self.observer = Observer()
+
+    def start(self):
+        handler = AudioFileHandler(self.process_callback)
+        self.observer.schedule(handler, str(CACHE_DIR), recursive=False)
+        self.observer.start()
+        queue_status["is_running"] = True
+        logging.info("Queue Manager Observer started.")
+
+    def stop(self):
+        self.observer.stop()
+        self.observer.join()
+        queue_status["is_running"] = False
+        logging.info("Queue Manager Observer stopped.")
+
+# Compatibility global functions for our app shell
+global_queue_manager = None
 
 def start_queue_manager():
-    if not queue_status["is_running"]:
-        queue_status["is_running"] = True
-        t = threading.Thread(target=poll_cache, name="QueueManagerThread")
-        t.daemon = True
-        t.start()
-        logging.info("Queue Manager started.")
+    global global_queue_manager
+    if global_queue_manager is None:
+        global_queue_manager = QueueManager(process_file)
+        global_queue_manager.start()
 
 def stop_queue_manager():
-    queue_status["is_running"] = False
-    logging.info("Queue Manager stopped.")
+    global global_queue_manager
+    if global_queue_manager is not None:
+        global_queue_manager.stop()
+        global_queue_manager = None

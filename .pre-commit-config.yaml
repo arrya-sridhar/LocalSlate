@@ -1,43 +1,45 @@
 # .pre-commit-config.yaml
-# LocalSlate DevOps Quality Configuration (10 Checks)
+# LocalSlate DevOps Quality Configuration
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
       - id: trailing-whitespace
-        name: "[1/10] Trim Trailing Whitespace"
+        name: "Trim Trailing Whitespace"
       - id: end-of-file-fixer
-        name: "[2/10] Fix End of Files"
+        name: "Fix End of Files"
       - id: check-yaml
-        name: "[3/10] Validate YAML files"
+        name: "Validate YAML files"
       - id: check-added-large-files
-        name: "[4/10] Prevent Large File Commits (Models Limit)"
+        name: "Prevent Large File Commits (Models Limit)"
         args: ['--maxkb=5000']
       - id: check-ast
-        name: "[5/10] Verify Python Abstract Syntax Trees"
+        name: "Verify Python Abstract Syntax Trees"
       - id: check-json
-        name: "[6/10] Validate JSON structures"
+        name: "Validate JSON structures"
       - id: check-merge-conflict
-        name: "[7/10] Check for Git Merge Conflicts"
+        name: "Check for Git Merge Conflicts"
+      - id: detect-private-key
+        name: "Detect Private Keys"
 
   - repo: https://github.com/psf/black
     rev: 24.4.2
     hooks:
       - id: black
-        name: "[8/10] Auto-format Python Code (Black)"
+        name: "Auto-format Python Code (Black)"
         language_version: python3.11
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.4.10
     hooks:
       - id: ruff
-        name: "[9/10] Lint and Autofix (Ruff)"
+        name: "Lint and Autofix (Ruff)"
         args: [--fix]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.10.1
     hooks:
       - id: mypy
-        name: "[10/10] Strict Static Type Check (Mypy)"
+        name: "Strict Static Type Check (Mypy)"
         additional_dependencies: [pydantic, types-psutil]
