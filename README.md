@@ -24,7 +24,7 @@ LocalSlate is a zero-trust, offline-first intelligence processing pipeline desig
 * **Hardware Ceiling:** Optimized to run within **4GB RAM** and a maximum of **4 CPU threads**.
 * **Audio Inputs:** Raw audio files must be mono, `16kHz`, `.wav` format, under `25MB` (~15 minutes of speech).
 * **Text Inputs:** Plain UTF-8 text with a hard limit of `4,000 characters` (aligned with Phi-3 context limits).
-* **Persistent Storage:** Data is stored in a structured local SQLite database (`data/localslate.db`).
+* **Persistent Storage:** Data is stored in a structured MySQL database (configured via environment variables).
 
 ---
 
@@ -41,7 +41,7 @@ hackathon_3-1/
 │   ├── requirements-render.txt    #   - lightweight Render platform requirements
 │   └── src/                       #   - backend python package
 │       ├── app/                   #     - Queue and CLI dashboard daemons
-│       ├── database/              #     - SQLite DB transactional queries
+│       ├── database/              #     - MySQL DB ORM & transactional queries
 │       ├── engine/                #     - Whisper & Phi-3 LLM processors
 │       ├── models/                #     - Pydantic schema validation structures
 │       └── api/                   #     - FastAPI routers & dependencies
@@ -94,6 +94,18 @@ source .venv/bin/activate
 uv pip install -r backend/requirements.txt
 ```
 
+### 4. Setup MySQL Database
+1. Make sure MySQL server is installed and running (e.g. on port 3306).
+2. Create a database for LocalSlate (e.g. `CREATE DATABASE localslate;`).
+3. Create a `.env` file in the project root based on `.env.example` and set your credentials:
+   ```ini
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_NAME=localslate
+   DB_USER=root
+   DB_PASSWORD=your_password
+   ```
+
 ---
 
 ## 💻 Local Run Guide
@@ -125,7 +137,7 @@ FastAPI provides auto-generated API specifications:
 - `GET /incidents`: Feeds the latest 10 saved incident reports.
 - `POST /process`: Direct text extraction and immediate DB write.
 - `POST /upload`: Multipart upload to cash folder for watchdog ingestion.
-- `DELETE /incidents`: Purges all sqlite records.
+- `DELETE /incidents`: Purges all database records.
 
 ---
 
@@ -136,10 +148,11 @@ The user interface is built on standard **HTML5**, **Vanilla CSS**, and **Vanill
 
 ---
 
-## 💾 SQLite Concurrency Configurations
-To handle multiple background queues and concurrent reads:
-- The database connection opens in **Write-Ahead Logging (WAL) Mode** (`PRAGMA journal_mode = WAL;`).
-- Explicit connection transaction locks use `timeout=30.0` to avoid database corruption or locked failures under heavy query loads.
+## 💾 MySQL Database Configurations
+To handle concurrent reads/writes and optimize transaction throughput:
+- Connections use SQLAlchemy connection pooling (`pool_size=10`, `max_overflow=20`).
+- Stale connection detection is enabled automatically via `pool_pre_ping=True`.
+- Transactions utilize SQLAlchemy Session contexts with safe `.commit()` and `.rollback()` error handlers.
 
 ---
 
@@ -159,4 +172,5 @@ The web API and mock extraction demos are optimized to deploy easily on Render:
 
 ## 🛠️ Troubleshooting
 * **ModuleNotFoundError on pytest**: Run tests via `pytest` (configured with `pytest.ini`).
-* **SQLite Locked Errors**: Check if multiple database connections are open. Ensure WAL mode is active by checking system processes.
+* **MySQL Connection Failures**: Check that the MySQL server is running, the port is open, and `.env` credentials are correct.
+

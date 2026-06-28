@@ -6,11 +6,21 @@ import backend.src.app.queue_manager as qm_mod
 
 
 @pytest.fixture(autouse=True)
-def reset_singletons():
+def reset_singletons(monkeypatch):
+    # Set the test database environment variable
+    monkeypatch.setenv("DB_NAME", "localslate_test")
+
     # Reset all caching singletons before each test run
     db_mod._global_db_service = None
     audio_mod._global_audio_service = None
     slm_mod._global_slm_service = None
+
+    # Automatically initialize and clear the test database
+    try:
+        db_mod.init_db()
+        db_mod.clear_db()
+    except Exception:
+        pass
 
     # Ensure queue manager is stopped if running
     if qm_mod.global_queue_manager is not None:

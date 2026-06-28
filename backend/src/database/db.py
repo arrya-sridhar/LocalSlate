@@ -1,74 +1,155 @@
-import sqlite3
+import os
 import logging
 from pathlib import Path
 from typing import Optional
+import pymysql
+from dotenv import load_dotenv
+
+from sqlalchemy import (
+    create_engine,
+    Column,
+    String,
+    DateTime,
+    Integer,
+    ForeignKey,
+    func,
+)
+from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
+import datetime
 from backend.src.models.models import IncidentReport
 
 # Resolve project root relative to backend/src/database/db.py
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-DATA_DIR = PROJECT_ROOT / "data"
-DB_PATH = DATA_DIR / "localslate.db"
+load_dotenv(PROJECT_ROOT / ".env")
+
+# Backward compatibility defaults
+DB_PATH = PROJECT_ROOT / "data" / "localslate.db"
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Incident(Base):
+    __tablename__ = "incidents"
+
+    incident_id = Column(String(255), primary_key=True)
+    iso_timestamp = Column(String(255), nullable=False)
+    computed_priority_level = Column(String(50), nullable=False)
+    system_summary = Column(String(1000), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    locations = relationship(
+        "IdentifiedLocation", back_populates="incident", cascade="all, delete-orphan"
+    )
+    personnel = relationship(
+        "IdentifiedPersonnel", back_populates="incident", cascade="all, delete-orphan"
+    )
+    tasks = relationship(
+        "ActionableTask", back_populates="incident", cascade="all, delete-orphan"
+    )
+
+
+class IdentifiedLocation(Base):
+    __tablename__ = "identified_locations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    incident_id = Column(
+        String(255),
+        ForeignKey("incidents.incident_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    location_name = Column(String(255), nullable=False)
+
+    incident = relationship("Incident", back_populates="locations")
+
+
+class IdentifiedPersonnel(Base):
+    __tablename__ = "identified_personnel"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    incident_id = Column(
+        String(255),
+        ForeignKey("incidents.incident_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    personnel_name = Column(String(255), nullable=False)
+
+    incident = relationship("Incident", back_populates="personnel")
+
+
+class ActionableTask(Base):
+    __tablename__ = "actionable_tasks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    incident_id = Column(
+        String(255),
+        ForeignKey("incidents.incident_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    task_desc = Column(String(1000), nullable=False)
+    urgency = Column(String(50), nullable=False)
+
+    incident = relationship("Incident", back_populates="tasks")
 
 
 class DatabaseService:
     def __init__(self, db_path: Optional[Path] = None):
-        if db_path is None:
-            db_path = DB_PATH
-        self.db_path = db_path
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        # db_path parameter is kept for backward compatibility but ignored
+        self.host = os.getenv("DB_HOST", "127.0.0.1")
+        self.port = os.getenv("DB_PORT", "3306")
+        self.user = os.getenv("DB_USER", "root")
+        self.password = os.getenv("DB_PASSWORD", "root")
+        self.db_name = os.getenv("DB_NAME", "localslate")
+
+        self.db_url = f"mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.db_name}"
+
+        # Connection pooling parameters
+        self.engine = create_engine(
+            self.db_url,
+            pool_size=10,
+            max_overflow=20,
+            pool_recycle=3600,
+            pool_pre_ping=True,
+        )
+        self.SessionLocal = sessionmaker(
+            autocommit=False, autoflush=False, bind=self.engine
+        )
         self.initialize()
 
-    def get_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self.db_path), timeout=30.0)
-        conn.execute("PRAGMA foreign_keys = ON;")
-        conn.execute(
-            "PRAGMA journal_mode = WAL;"
-        )  # Avoid SQLite locking/concurrency issues
-        conn.row_factory = sqlite3.Row
-        return conn
+    def create_database_if_not_exists(self) -> None:
+        try:
+            conn = pymysql.connect(
+                host=self.host,
+                user=self.user,
+                password=self.password,
+                port=int(self.port),
+            )
+            cursor = conn.cursor()
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.db_name};")
+            conn.commit()
+            cursor.close()
+            conn.close()
+            logging.info(f"Database '{self.db_name}' checked/created successfully.")
+        except Exception as e:
+            logging.error(f"Failed to create database '{self.db_name}': {e}")
+            raise
 
     def initialize(self) -> None:
         try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.executescript("""
-                    CREATE TABLE IF NOT EXISTS incidents (
-                        incident_id TEXT PRIMARY KEY,
-                        iso_timestamp TEXT NOT NULL,
-                        computed_priority_level TEXT NOT NULL,
-                        system_summary TEXT NOT NULL,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                    );
-
-                    CREATE TABLE IF NOT EXISTS identified_locations (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        incident_id TEXT NOT NULL,
-                        location_name TEXT NOT NULL,
-                        FOREIGN KEY(incident_id) REFERENCES incidents(incident_id) ON DELETE CASCADE
-                    );
-
-                    CREATE TABLE IF NOT EXISTS identified_personnel (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        incident_id TEXT NOT NULL,
-                        personnel_name TEXT NOT NULL,
-                        FOREIGN KEY(incident_id) REFERENCES incidents(incident_id) ON DELETE CASCADE
-                    );
-
-                    CREATE TABLE IF NOT EXISTS actionable_tasks (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        incident_id TEXT NOT NULL,
-                        task_desc TEXT NOT NULL,
-                        urgency TEXT NOT NULL,
-                        FOREIGN KEY(incident_id) REFERENCES incidents(incident_id) ON DELETE CASCADE
-                    );
-
-                    CREATE INDEX IF NOT EXISTS idx_incidents_priority ON incidents(computed_priority_level);
-                    CREATE INDEX IF NOT EXISTS idx_incidents_timestamp ON incidents(iso_timestamp);
-                """)
-                conn.commit()
-            logging.info("SQLite database initialized successfully.")
+            self.create_database_if_not_exists()
+            Base.metadata.create_all(bind=self.engine)
+            logging.info("MySQL database initialized successfully with SQLAlchemy.")
         except Exception as e:
-            logging.error(f"Failed to initialize SQLite database: {e}")
+            logging.error(f"Failed to initialize MySQL database: {e}")
+            raise
+
+    def get_connection(self):
+        # Health check expects a closeable connection object
+        try:
+            return self.engine.raw_connection()
+        except Exception as e:
+            logging.error(f"Failed to get database connection: {e}")
             raise
 
     def insert_incident(self, json_data: dict) -> None:
@@ -77,101 +158,73 @@ class DatabaseService:
         except Exception as e:
             raise ValueError(f"Failed to validate JSON data against schema: {e}")
 
-        conn = self.get_connection()
+        db = self.SessionLocal()
         try:
-            cursor = conn.cursor()
-            # Start transaction explicitly
-            conn.execute("BEGIN TRANSACTION;")
+            db.begin()
 
-            cursor.execute(
-                "INSERT INTO incidents (incident_id, iso_timestamp, computed_priority_level, system_summary) VALUES (?, ?, ?, ?)",
-                (
-                    incident.incident_id,
-                    incident.iso_timestamp,
-                    incident.computed_priority_level,
-                    incident.system_summary,
-                ),
+            db_incident = Incident(
+                incident_id=incident.incident_id,
+                iso_timestamp=incident.iso_timestamp,
+                computed_priority_level=incident.computed_priority_level,
+                system_summary=incident.system_summary,
             )
 
             for loc in incident.identified_entities.locations:
-                cursor.execute(
-                    "INSERT INTO identified_locations (incident_id, location_name) VALUES (?, ?)",
-                    (incident.incident_id, loc),
-                )
+                db_incident.locations.append(IdentifiedLocation(location_name=loc))
 
-            for person in incident.identified_entities.personnel:
-                cursor.execute(
-                    "INSERT INTO identified_personnel (incident_id, personnel_name) VALUES (?, ?)",
-                    (incident.incident_id, person),
-                )
+            for pers in incident.identified_entities.personnel:
+                db_incident.personnel.append(IdentifiedPersonnel(personnel_name=pers))
 
             for task in incident.actionable_tasks:
-                cursor.execute(
-                    "INSERT INTO actionable_tasks (incident_id, task_desc, urgency) VALUES (?, ?, ?)",
-                    (incident.incident_id, task.task_desc, task.urgency),
+                db_incident.tasks.append(
+                    ActionableTask(task_desc=task.task_desc, urgency=task.urgency)
                 )
 
-            conn.commit()
+            db.add(db_incident)
+            db.commit()
             logging.info(
-                f"Incident {incident.incident_id} successfully saved to database."
+                f"Incident {incident.incident_id} successfully saved to MySQL."
             )
         except Exception as e:
-            conn.rollback()
+            db.rollback()
             logging.error(f"Transaction rolled back due to error: {e}")
             raise
         finally:
-            conn.close()
+            db.close()
 
     def get_latest_incidents(self, limit: int = 5) -> list:
-        conn = self.get_connection()
-        cursor = conn.cursor()
+        db = self.SessionLocal()
         try:
-            cursor.execute(
-                """
-                SELECT incident_id, iso_timestamp, computed_priority_level, system_summary, created_at
-                FROM incidents
-                ORDER BY created_at DESC
-                LIMIT ?;
-                """,
-                (limit,),
+            results = (
+                db.query(Incident)
+                .order_by(Incident.created_at.desc())
+                .limit(limit)
+                .all()
             )
-            rows = cursor.fetchall()
             incidents = []
-            for row in rows:
-                inc_id = row["incident_id"]
-                cursor.execute(
-                    "SELECT location_name FROM identified_locations WHERE incident_id = ?;",
-                    (inc_id,),
+            for inc in results:
+                created_str = (
+                    inc.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                    if inc.created_at
+                    else ""
                 )
-                locations = [r["location_name"] for r in cursor.fetchall()]
-
-                cursor.execute(
-                    "SELECT personnel_name FROM identified_personnel WHERE incident_id = ?;",
-                    (inc_id,),
-                )
-                personnel = [r["personnel_name"] for r in cursor.fetchall()]
-
-                cursor.execute(
-                    "SELECT task_desc, urgency FROM actionable_tasks WHERE incident_id = ?;",
-                    (inc_id,),
-                )
-                tasks = [
-                    {"task_desc": r["task_desc"], "urgency": r["urgency"]}
-                    for r in cursor.fetchall()
-                ]
-
                 incidents.append(
                     {
-                        "incident_id": inc_id,
-                        "iso_timestamp": row["iso_timestamp"],
-                        "computed_priority_level": row["computed_priority_level"],
-                        "system_summary": row["system_summary"],
-                        "created_at": row["created_at"],
+                        "incident_id": inc.incident_id,
+                        "iso_timestamp": inc.iso_timestamp,
+                        "computed_priority_level": inc.computed_priority_level,
+                        "system_summary": inc.system_summary,
+                        "created_at": created_str,
                         "identified_entities": {
-                            "locations": locations,
-                            "personnel": personnel,
+                            "locations": [loc.location_name for loc in inc.locations],
+                            "personnel": [
+                                pers.personnel_name for pers in inc.personnel
+                            ],
                         },
-                        "actionable_tasks": tasks,
+                        "actionable_tasks": [
+                            {"task_desc": task.task_desc, "urgency": task.urgency}
+                            for task in inc.tasks
+                        ],
                     }
                 )
             return incidents
@@ -179,11 +232,10 @@ class DatabaseService:
             logging.error(f"Failed to fetch latest incidents: {e}")
             return []
         finally:
-            conn.close()
+            db.close()
 
     def get_db_stats(self) -> dict:
-        conn = self.get_connection()
-        cursor = conn.cursor()
+        db = self.SessionLocal()
         stats = {
             "total": 0,
             "CRITICAL": 0,
@@ -192,40 +244,39 @@ class DatabaseService:
             "LOW": 0,
         }
         try:
-            cursor.execute("SELECT COUNT(*) FROM incidents;")
-            stats["total"] = cursor.fetchone()[0]
-
-            cursor.execute(
-                "SELECT computed_priority_level, COUNT(*) FROM incidents GROUP BY computed_priority_level;"
+            stats["total"] = db.query(Incident).count()
+            group_counts = (
+                db.query(
+                    Incident.computed_priority_level, func.count(Incident.incident_id)
+                )
+                .group_by(Incident.computed_priority_level)
+                .all()
             )
-            for row in cursor.fetchall():
-                priority = row["computed_priority_level"]
-                count = row[1]
+            for priority, count in group_counts:
                 if priority in stats:
                     stats[priority] = count
         except Exception as e:
             logging.error(f"Failed to get database stats: {e}")
         finally:
-            conn.close()
+            db.close()
         return stats
 
     def clear_db(self) -> None:
-        conn = self.get_connection()
+        db = self.SessionLocal()
         try:
-            cursor = conn.cursor()
-            conn.execute("BEGIN TRANSACTION;")
-            cursor.execute("DELETE FROM identified_locations;")
-            cursor.execute("DELETE FROM identified_personnel;")
-            cursor.execute("DELETE FROM actionable_tasks;")
-            cursor.execute("DELETE FROM incidents;")
-            conn.commit()
-            logging.info("SQLite database cleared successfully.")
+            db.begin()
+            db.query(ActionableTask).delete()
+            db.query(IdentifiedLocation).delete()
+            db.query(IdentifiedPersonnel).delete()
+            db.query(Incident).delete()
+            db.commit()
+            logging.info("MySQL database cleared successfully.")
         except Exception as e:
-            conn.rollback()
+            db.rollback()
             logging.error(f"Failed to clear database, rollback executed: {e}")
             raise
         finally:
-            conn.close()
+            db.close()
 
 
 # Compatibility Legacy Classes and Functions

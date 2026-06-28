@@ -208,7 +208,7 @@ def draw_system_stats() -> Panel:
     text.append(f"{ram_str}\n")
     text.append(f"  {make_progress_bar(ram_percent)}\n\n")
 
-    text.append("📊 SQLITE STORAGE\n", style="bold yellow")
+    text.append("📊 DATABASE STORAGE\n", style="bold yellow")
     stats = get_db_stats()
     text.append(f"• Total Saved Incidents: {stats['total']}\n", style="bold cyan")
     text.append("  ↳ ")
@@ -309,9 +309,7 @@ def draw_incidents() -> Panel:
     incidents = get_latest_incidents(5)
 
     if not incidents:
-        text = Text(
-            "\n\n📭 SQLite Database is Empty\n", style="bold yellow justify=center"
-        )
+        text = Text("\n\n📭 Database is Empty\n", style="bold yellow justify=center")
         text.append(
             "Drop text/audio files, or press [T]/[A] to ingest mock data.",
             style="dim white justify=center",
@@ -319,7 +317,7 @@ def draw_incidents() -> Panel:
         return Panel(
             Align.center(text, vertical="middle"),
             border_style="green",
-            title="[bold green]SQLite Database Stream[/bold green]",
+            title="[bold green]Database Stream[/bold green]",
         )
 
     table = Table(expand=True)
@@ -358,7 +356,7 @@ def draw_incidents() -> Panel:
     return Panel(
         table,
         border_style="green",
-        title="[bold green]SQLite Database Stream (Latest 5)[/bold green]",
+        title="[bold green]Database Stream (Latest 5)[/bold green]",
     )
 
 
@@ -441,7 +439,7 @@ def main():
                     message_time = time.time()
                 elif kp == "c":
                     clear_db()
-                    message = "Success: Purged SQLite database records."
+                    message = "Success: Purged database records."
                     message_time = time.time()
 
                 time.sleep(0.1)

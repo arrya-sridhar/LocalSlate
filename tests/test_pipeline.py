@@ -1,5 +1,4 @@
 import pytest
-import sqlite3
 from pathlib import Path
 
 from backend.src.database.db import DatabaseEngine
@@ -8,20 +7,17 @@ from backend.src.engine.slm_processor import mock_extraction
 from backend.src.models.models import IncidentReport
 
 
-def test_db_initialization(tmp_path):
-    # Test DB path
-    test_db_path = tmp_path / "test_localslate.db"
+def test_db_initialization(monkeypatch):
+    # Set the test database environment variable
+    monkeypatch.setenv("DB_NAME", "localslate_test")
 
-    db_engine = DatabaseEngine(db_path=test_db_path)
+    db_engine = DatabaseEngine()
     db_engine.initialize()
 
-    assert test_db_path.exists()
+    import sqlalchemy
 
-    conn = sqlite3.connect(str(test_db_path))
-    cursor = conn.cursor()
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    tables = [r[0] for r in cursor.fetchall()]
-    conn.close()
+    inspector = sqlalchemy.inspect(db_engine.engine)
+    tables = inspector.get_table_names()
 
     assert "incidents" in tables
     assert "identified_locations" in tables
@@ -61,7 +57,6 @@ def test_integration_pipeline_txt(tmp_path, monkeypatch):
     test_cache = tmp_path / "cache"
     test_queue = tmp_path / "queue"
     test_failed = tmp_path / "failed_audio"
-    test_db = tmp_path / "localslate.db"
 
     test_cache.mkdir()
     test_queue.mkdir()
@@ -70,11 +65,13 @@ def test_integration_pipeline_txt(tmp_path, monkeypatch):
     import backend.src.database.db as db_mod
     import backend.src.app.queue_manager as qm_mod
 
-    monkeypatch.setattr(db_mod, "DB_PATH", test_db)
+    monkeypatch.setenv("DB_NAME", "localslate_test")
     monkeypatch.setattr(qm_mod, "CACHE_DIR", test_cache)
     monkeypatch.setattr(qm_mod, "QUEUE_DIR", test_queue)
     monkeypatch.setattr(qm_mod, "FAILED_DIR", test_failed)
 
+    # Force DB reload with test database
+    db_mod._global_db_service = None
     from backend.src.database.db import init_db, get_latest_incidents
     from backend.src.app.queue_manager import process_file
 
@@ -104,7 +101,6 @@ def test_integration_pipeline_wav(tmp_path, monkeypatch):
     test_cache = tmp_path / "cache"
     test_queue = tmp_path / "queue"
     test_failed = tmp_path / "failed_audio"
-    test_db = tmp_path / "localslate.db"
 
     test_cache.mkdir()
     test_queue.mkdir()
@@ -113,11 +109,13 @@ def test_integration_pipeline_wav(tmp_path, monkeypatch):
     import backend.src.database.db as db_mod
     import backend.src.app.queue_manager as qm_mod
 
-    monkeypatch.setattr(db_mod, "DB_PATH", test_db)
+    monkeypatch.setenv("DB_NAME", "localslate_test")
     monkeypatch.setattr(qm_mod, "CACHE_DIR", test_cache)
     monkeypatch.setattr(qm_mod, "QUEUE_DIR", test_queue)
     monkeypatch.setattr(qm_mod, "FAILED_DIR", test_failed)
 
+    # Force DB reload with test database
+    db_mod._global_db_service = None
     from backend.src.database.db import init_db, get_latest_incidents
     from backend.src.app.queue_manager import process_file
 

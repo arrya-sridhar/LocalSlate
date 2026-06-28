@@ -27,49 +27,51 @@ The SLM is prompted to output strictly adhering to this nested JSON schema:
 ```
 *(Note: `computed_priority_level` must be one of: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`)*
 
-## 3. Local SQLite DDL Schema
+## 3. MySQL DDL Schema
 The local database maps directly to the flattened JSON schema. 
 
 ```sql
--- SQLite Database Schema
+-- MySQL Database Schema
 
 CREATE TABLE IF NOT EXISTS incidents (
-    incident_id TEXT PRIMARY KEY,
-    iso_timestamp TEXT NOT NULL,
-    computed_priority_level TEXT NOT NULL,
-    system_summary TEXT NOT NULL,
+    incident_id VARCHAR(255) PRIMARY KEY,
+    iso_timestamp VARCHAR(255) NOT NULL,
+    computed_priority_level VARCHAR(50) NOT NULL,
+    system_summary VARCHAR(1000) NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS identified_locations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    incident_id TEXT NOT NULL,
-    location_name TEXT NOT NULL,
+    id INT PRIMARY KEY AUTOINCREMENT,
+    incident_id VARCHAR(255) NOT NULL,
+    location_name VARCHAR(255) NOT NULL,
     FOREIGN KEY(incident_id) REFERENCES incidents(incident_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS identified_personnel (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    incident_id TEXT NOT NULL,
-    personnel_name TEXT NOT NULL,
+    id INT PRIMARY KEY AUTOINCREMENT,
+    incident_id VARCHAR(255) NOT NULL,
+    personnel_name VARCHAR(255) NOT NULL,
     FOREIGN KEY(incident_id) REFERENCES incidents(incident_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS actionable_tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    incident_id TEXT NOT NULL,
-    task_desc TEXT NOT NULL,
-    urgency TEXT NOT NULL,
+    id INT PRIMARY KEY AUTOINCREMENT,
+    incident_id VARCHAR(255) NOT NULL,
+    task_desc VARCHAR(1000) NOT NULL,
+    urgency VARCHAR(50) NOT NULL,
     FOREIGN KEY(incident_id) REFERENCES incidents(incident_id) ON DELETE CASCADE
 );
 
 -- Optimization indexes for local querying
-CREATE INDEX IF NOT EXISTS idx_incidents_priority ON incidents(computed_priority_level);
-CREATE INDEX IF NOT EXISTS idx_incidents_timestamp ON incidents(iso_timestamp);
+CREATE INDEX idx_incidents_priority ON incidents(computed_priority_level);
+CREATE INDEX idx_incidents_timestamp ON incidents(iso_timestamp);
 ```
 
-## 4. SQLite Journal Optimization
-To guarantee that background thread writers do not block frontend web socket or fetch readers, the SQLite Database Engine runs under:
-* **WAL Mode**: `PRAGMA journal_mode = WAL;`
-* **Foreign Key Constraints**: `PRAGMA foreign_keys = ON;`
-* **Busy Timeout**: 30 seconds to manage concurrent table locks.
+## 4. Connection Pooling Optimization
+To guarantee that background thread writers do not block frontend web socket or fetch readers, the SQLAlchemy Database Engine runs with:
+* **Pool Size**: `pool_size = 10`
+* **Max Overflow**: `max_overflow = 20`
+* **Pool Recycle**: 3600 seconds
+* **Connection Pre-ping**: `pool_pre_ping = True` (detects stale connections automatically)
+
