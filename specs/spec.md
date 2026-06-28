@@ -1,7 +1,7 @@
-# Antigravity - Technical Core Specification
+# LocalSlate - Technical Core Specification
 
 ## 1. System Boundaries and Scope Constraints
-Antigravity is engineered as a zero-trust, offline-first application. The core objective is processing unstructured field notes (audio and text) into structured actionable intelligence strictly on local commodity hardware.
+LocalSlate is engineered as a zero-trust, offline-first application. The core objective is processing unstructured field notes (audio and text) into structured actionable intelligence strictly on local commodity hardware.
 
 ### Constraints:
 *   **Network Isolation:** The system must operate with zero outbound network calls during runtime execution. All model weights, binaries, and inference logic must reside locally.
