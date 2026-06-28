@@ -41,13 +41,13 @@ def get_queue_length():
 def run_with_timeout(func, args, timeout):
     res = [None]
     err = [None]
-    
+
     def target():
         try:
             res[0] = func(*args)
         except Exception as e:
             err[0] = e
-            
+
     t = threading.Thread(target=target)
     t.daemon = True
     t.start()
@@ -69,13 +69,13 @@ def process_file(file_path: Path):
         file_hash = hasher.hexdigest()
     except Exception:
         file_hash = str(uuid.uuid4())
-        
+
     lock_path = QUEUE_DIR / f"{file_hash}.lock"
     lock_path.touch()
-    
+
     suffix = file_path.suffix.lower()
     dest_path = QUEUE_DIR / f"{file_hash}{suffix}"
-    
+
     try:
         shutil.move(str(file_path), str(dest_path))
     except Exception as e:
@@ -85,60 +85,60 @@ def process_file(file_path: Path):
         return
 
     queue_status["current_file"] = dest_path.name
-    
+
     try:
         if suffix == ".wav":
             queue_status["current_status"] = "Transcribing..."
             logging.info(f"Processing audio incident {file_hash}...")
-            
+
             transcript, err = run_with_timeout(transcribe_audio, (dest_path,), 120.0)
             if err:
                 logging.error(f"Audio processing error/timeout: {err}")
                 raise err
-                
+
             queue_status["current_status"] = "Structuring..."
             report = structure_text(transcript)
             report["incident_id"] = file_hash
-            
+
             queue_status["current_status"] = "Saving to Database..."
             insert_incident(report)
             queue_status["processed_count"] += 1
-            
+
         elif suffix == ".txt":
             queue_status["current_status"] = "Reading Text..."
             logging.info(f"Processing text incident {file_hash}...")
-            
+
             with open(dest_path, "r", encoding="utf-8") as f:
                 text = f.read(4010)
-                
+
             if len(text) > 4000:
                 logging.warning(f"Text file exceeds 4000 char limit. Truncating.")
                 text = text[:4000]
-                
+
             queue_status["current_status"] = "Structuring..."
             report = structure_text(text)
             report["incident_id"] = file_hash
-            
+
             queue_status["current_status"] = "Saving to Database..."
             insert_incident(report)
-            
+
             dest_path.unlink()
             queue_status["processed_count"] += 1
-            
+
         else:
             raise ValueError(f"Unsupported file format: {suffix}")
-            
+
     except Exception as e:
         logging.error(f"Failed to process incident {file_hash}: {e}")
         queue_status["failed_count"] += 1
-        
+
         if dest_path.exists():
             failed_dest = FAILED_DIR / dest_path.name
             try:
                 shutil.move(str(dest_path), str(failed_dest))
             except Exception as move_err:
                 logging.error(f"Could not move failed file to failed folder: {move_err}")
-                
+
         try:
             fallback_report = {
                 "incident_id": file_hash,
@@ -154,7 +154,7 @@ def process_file(file_path: Path):
             insert_incident(fallback_report)
         except Exception as db_err:
             logging.error(f"Failed to write failed record to database: {db_err}")
-            
+
     finally:
         if lock_path.exists():
             lock_path.unlink()
