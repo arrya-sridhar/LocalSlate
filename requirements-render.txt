@@ -1,7 +1,4 @@
 fastapi
 uvicorn
 pydantic
-python-multipartfastapi
-uvicorn
-pydantic
 python-multipart
