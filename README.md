@@ -28,7 +28,7 @@ The system strictly enforces the following hardware and architectural bounds to 
 * **Hardware Ceiling:** Optimized to run within **4GB RAM** and a maximum of **4 CPU threads**.
 * **Audio Inputs:** Raw audio files must be mono, `16kHz`, `.wav` format, under `25MB` (~15 minutes of speech).
 * **Text Inputs:** Plain UTF-8 text with a hard limit of `4,000 characters` (aligned with Phi-3 context limits).
-* **Persistent Storage:** Data is stored in a structured local SQLite database (`data/antigravity.db`).
+* **Persistent Storage:** Data is stored in a structured local SQLite database (`data/localslate.db`).
 
 ---
 
@@ -46,7 +46,7 @@ graph TD
     G -->|Phi-3 GGUF, 2 threads| H[Raw JSON Output]
     H --> I[Pydantic Validation]
     I -->|Valid JSON| J(src/engine/db.py)
-    J -->|SQL transaction| K[(SQLite: data/antigravity.db)]
+    J -->|SQL transaction| K[(SQLite: data/localslate.db)]
     K --> L[CLI Dashboard Update]
 ```
 
@@ -84,7 +84,7 @@ hackathon_3/
 │   ├── whisper/               # faster-whisper configuration & vocab files
 │   └── slm/                   # phi3-mini-4k.gguf binary
 ├── data/                      # [GIT-IGNORED] Databases and filesystems
-│   ├── antigravity.db         # SQLite persistent database
+│   ├── localslate.db         # SQLite persistent database
 │   ├── cache/                 # Raw ingestion folder
 │   ├── queue/                 # In-flight queue items
 │   └── failed_audio/          # Audio files that timed out or failed validation

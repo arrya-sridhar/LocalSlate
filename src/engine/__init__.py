@@ -1,1 +1,1 @@
-# Init file for engine package
+# Engine core package

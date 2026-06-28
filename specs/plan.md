@@ -14,7 +14,7 @@ Hardcoded paths (`/Users/..` or `C:\...`) are strictly prohibited.
 from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent 
 MODELS_DIR = PROJECT_ROOT / ".models"
-DB_PATH = PROJECT_ROOT / "data" / "antigravity.db"
+DB_PATH = PROJECT_ROOT / "data" / "localslate.db"
 ```
 This guarantees the code executes flawlessly regardless of where the repo is cloned locally.
 
@@ -28,7 +28,7 @@ __pycache__/
 *.py[cod]
 .venv/
 
-# Antigravity Local State
+# LocalSlate Local State
 data/*.db
 data/*.sqlite3
 data/cache/
