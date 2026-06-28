@@ -1,11 +1,11 @@
-# Antigravity 🌌
+# LocalSlate 🌌
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](LICENSE)
 [![Python: 3.11](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![Platform: Offline-First](https://img.shields.io/badge/Platform-Offline--First-orange.svg)](#)
 [![DB: SQLite](https://img.shields.io/badge/DB-SQLite-lightgrey.svg)](#)
 
-Antigravity is a zero-trust, offline-first intelligence processing pipeline designed to extract structured incident reports from raw field notes (audio and text). It executes entirely on local commodity hardware with strict resource boundaries and absolute network isolation.
+LocalSlate is a zero-trust, offline-first intelligence processing pipeline designed to extract structured incident reports from raw field notes (audio and text). It executes entirely on local commodity hardware with strict resource boundaries and absolute network isolation.
 
 ---
 
