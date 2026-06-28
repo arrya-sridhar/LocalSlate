@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Python
 __pycache__/
 *.py[cod]
@@ -24,3 +25,10 @@ data/failed_audio/*
 # OS generated files
 .DS_Store
 Thumbs.db
+=======
+__pycache__/
+*.py[cod]
+*.db
+*.sqlite
+*.sqlite3
+>>>>>>> dc0bf258ca77acc42e1214cdd61089ff33906839
