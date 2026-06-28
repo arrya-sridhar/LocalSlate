@@ -135,6 +135,20 @@ source .venv/bin/activate
 uv pip install -r requirements.txt
 ```
 
+### 4. Running the Web API & Render Deployment
+
+To run the web application locally:
+```bash
+uvicorn main:app --reload
+```
+
+#### Render Deployment Configuration
+* **Build Command:** `pip install uv && uv pip install -r requirements.txt`
+* **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
+
+> [!IMPORTANT]
+> **Demo-Only Deployment**: The Render deployment is intended purely as an API showcase and web demo wrapper. Because the platform adheres to an offline-first architecture, the local AI models (Whisper, Phi-3 GGUF) are not required during startup and are not executed on Render. If models are missing, the API gracefully falls back to structured mock processing. The actual high-performance offline AI inference is designed to run locally on commodity hardware with absolute network isolation.
+
 For full details, review [quickstart.md](file:///c:/Users/srees/hackathon_3-1/specs/quickstart.md) and [plan.md](file:///c:/Users/srees/hackathon_3-1/specs/plan.md).
 
 ---
