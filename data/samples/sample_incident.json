@@ -1,0 +1,20 @@
+{
+  "incident_id": "test-001",
+  "iso_timestamp": "2026-06-28T10:30:00Z",
+  "computed_priority_level": "HIGH",
+  "system_summary": "Water leakage detected in Server Room B. Immediate shutdown and inspection required.",
+  "identified_entities": {
+    "locations": ["Server Room B"],
+    "personnel": ["Agent K"]
+  },
+  "actionable_tasks": [
+    {
+      "task_desc": "Shut down water supply",
+      "urgency": "CRITICAL"
+    },
+    {
+      "task_desc": "Inspect server racks for damage",
+      "urgency": "HIGH"
+    }
+  ]
+}

@@ -63,7 +63,7 @@ class DashboardUI:
                 transcription = self.whisper.transcribe(file_path)
             elif file_path.suffix.lower() == ".txt":
                 transcription = file_path.read_text(encoding="utf-8")
-            
+
             if transcription:
                 self.status = "Extracting JSON schema..."
                 json_data = self.slm.extract_incident(transcription)
@@ -97,7 +97,7 @@ def generate_mock_audio_file():
     cache_dir.mkdir(parents=True, exist_ok=True)
     filename = f"report_audio_beta_{int(time.time())}.wav"
     filepath = cache_dir / filename
-    
+
     with wave.open(str(filepath), "wb") as wav:
         wav.setnchannels(1)
         wav.setsampwidth(2)
@@ -138,32 +138,32 @@ def draw_header() -> Panel:
 def draw_status() -> Panel:
     status_text = Text()
     status_text.append("SYSTEM STATUS\n", style="bold yellow")
-    
+
     manager_state = "RUNNING" if queue_status["is_running"] else "STOPPED"
     manager_color = "green" if queue_status["is_running"] else "red"
     status_text.append(f"• Ingestion Service: ", style="bold")
     status_text.append(f"{manager_state}\n", style=manager_color)
-    
+
     status_text.append(f"• Active File: ", style="bold")
     curr_file = queue_status["current_file"]
     status_text.append(f"{curr_file or 'None'}\n", style="cyan")
-    
+
     status_text.append(f"• Pipeline Step: ", style="bold")
     status_text.append(f"{queue_status['current_status']}\n", style="bold green" if queue_status["current_status"] != "Idle" else "white")
-    
+
     status_text.append(f"• Local Ingest Queue: ", style="bold")
     status_text.append(f"{get_queue_length()} pending\n", style="yellow")
-    
+
     status_text.append(f"• RAM Allocation: ", style="bold")
     status_text.append(f"{check_ram_string()}\n", style="white")
-    
+
     status_text.append(f"• CPU Threads: ", style="bold")
     status_text.append("4 Max (2 Whisper, 2 SLM)\n\n", style="white")
-    
+
     status_text.append("METRICS\n", style="bold yellow")
     status_text.append(f"✓ Processed: {queue_status['processed_count']}\n", style="bold green")
     status_text.append(f"✗ Failed/Pending: {queue_status['failed_count']}\n", style="bold red")
-    
+
     return Panel(status_text, border_style="yellow")
 
 def draw_incidents() -> Panel:
@@ -174,7 +174,7 @@ def draw_incidents() -> Panel:
     table.add_column("Locations", width=15)
     table.add_column("Personnel", width=15)
     table.add_column("Summary", style="white")
-    
+
     incidents = get_latest_incidents(5)
     for inc in incidents:
         priority = inc["computed_priority_level"]
@@ -189,10 +189,10 @@ def draw_incidents() -> Panel:
             color = "green"
         elif priority == "PENDING_REVIEW":
             color = "bold red blinking"
-            
+
         locations = ", ".join(inc["identified_entities"]["locations"])
         personnel = ", ".join(inc["identified_entities"]["personnel"])
-        
+
         table.add_row(
             inc["incident_id"][:8] + "...",
             inc["iso_timestamp"][:19].replace("T", " "),
@@ -218,10 +218,10 @@ def main():
         print("Error: The 'rich' library is required to run the LocalSlate Dashboard.")
         print("Please install dependencies: pip install rich psutil pydantic")
         sys.exit(1)
-        
+
     init_db()
     start_queue_manager()
-    
+
     console = Console()
     layout = Layout()
     layout.split(
@@ -233,24 +233,24 @@ def main():
         Layout(name="status", ratio=1),
         Layout(name="incidents", ratio=3)
     )
-    
+
     console.print("[green]Launching LocalSlate CLI Dashboard...[/green]")
-    
+
     message = ""
     message_time = 0
-    
+
     try:
         with Live(layout, screen=True, refresh_per_second=4):
             while True:
                 layout["header"].update(draw_header())
                 layout["status"].update(draw_status())
                 layout["incidents"].update(draw_incidents())
-                
+
                 footer_panel = draw_footer()
                 if time.time() - message_time < 3.0:
                     footer_panel.subtitle = message
                 layout["footer"].update(footer_panel)
-                
+
                 kp = get_keypress()
                 if kp == "q":
                     break
@@ -262,7 +262,7 @@ def main():
                     fname = generate_mock_audio_file()
                     message = f"Success: Ingested WAV {fname} into cache."
                     message_time = time.time()
-                    
+
                 time.sleep(0.1)
     finally:
         stop_queue_manager()

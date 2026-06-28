@@ -1,5 +1,34 @@
+<<<<<<< HEAD
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.pytest_cache/
+
+# Local State
+data/*.db
+data/*.sqlite3
+data/cache/*
+data/queue/*
+data/failed_audio/*
+!data/cache/.gitkeep
+!data/queue/.gitkeep
+!data/failed_audio/.gitkeep
+
+# Massive Model Binaries
+.models/whisper/*
+.models/slm/*
+!.models/whisper/.gitkeep
+!.models/slm/.gitkeep
+
+# OS generated files
+.DS_Store
+Thumbs.db
+=======
 __pycache__/
 *.py[cod]
 *.db
 *.sqlite
 *.sqlite3
+>>>>>>> dc0bf258ca77acc42e1214cdd61089ff33906839
