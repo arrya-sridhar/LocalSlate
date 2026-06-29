@@ -9,17 +9,30 @@ from pathlib import Path
 try:
     from watchdog.events import FileSystemEventHandler
     from watchdog.observers import Observer
+
     WATCHDOG_AVAILABLE = True
 except ImportError:
     WATCHDOG_AVAILABLE = False
+
     class FileSystemEventHandler:  # type: ignore
         pass
+
     class Observer:  # type: ignore
-        def __init__(self, *args, **kwargs): pass
-        def schedule(self, *args, **kwargs): pass
-        def start(self, *args, **kwargs): pass
-        def stop(self, *args, **kwargs): pass
-        def join(self, *args, **kwargs): pass
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def schedule(self, *args, **kwargs):
+            pass
+
+        def start(self, *args, **kwargs):
+            pass
+
+        def stop(self, *args, **kwargs):
+            pass
+
+        def join(self, *args, **kwargs):
+            pass
+
 
 from backend.src.engine.audio_processor import transcribe_audio
 from backend.src.engine.slm_processor import structure_text

@@ -117,7 +117,9 @@ class DatabaseService:
                     autocommit=False, autoflush=False, bind=self.engine
                 )
             except Exception as e:
-                logging.error(f"Failed to construct MySQL engine: {e}. Falling back to SQLite.")
+                logging.error(
+                    f"Failed to construct MySQL engine: {e}. Falling back to SQLite."
+                )
                 self.db_type = "sqlite"
                 self.setup_sqlite()
         else:
@@ -130,16 +132,14 @@ class DatabaseService:
         db_dir.mkdir(parents=True, exist_ok=True)
         sqlite_db_path = db_dir / f"{self.db_name}.db"
         self.db_url = f"sqlite:///{sqlite_db_path}"
-        self.engine = create_engine(
-            self.db_url,
-            connect_args={"timeout": 30.0}
-        )
+        self.engine = create_engine(self.db_url, connect_args={"timeout": 30.0})
         self.SessionLocal = sessionmaker(
             autocommit=False, autoflush=False, bind=self.engine
         )
 
         # Enable WAL mode and configure cache size for SQLite concurrency
         from sqlalchemy import event
+
         @event.listens_for(self.engine, "connect")
         def set_sqlite_pragma(dbapi_connection, connection_record):
             cursor = dbapi_connection.cursor()
@@ -147,7 +147,9 @@ class DatabaseService:
                 cursor.execute("PRAGMA journal_mode=WAL;")
                 cursor.execute("PRAGMA synchronous=NORMAL;")
             except Exception as e:
-                logging.warning(f"Failed to set SQLite PRAGMA journal_mode/synchronous: {e}")
+                logging.warning(
+                    f"Failed to set SQLite PRAGMA journal_mode/synchronous: {e}"
+                )
             finally:
                 cursor.close()
 
@@ -177,13 +179,17 @@ class DatabaseService:
                 logging.info("MySQL database initialized successfully with SQLAlchemy.")
                 return
             except Exception as e:
-                logging.error(f"Failed to initialize MySQL database: {e}. Falling back to SQLite.")
+                logging.error(
+                    f"Failed to initialize MySQL database: {e}. Falling back to SQLite."
+                )
                 self.db_type = "sqlite"
                 self.setup_sqlite()
 
         try:
             Base.metadata.create_all(bind=self.engine)
-            logging.info(f"SQLite database '{self.db_name}' initialized successfully at {self.db_url}")
+            logging.info(
+                f"SQLite database '{self.db_name}' initialized successfully at {self.db_url}"
+            )
         except Exception as e:
             logging.error(f"Failed to initialize SQLite database: {e}")
             raise
