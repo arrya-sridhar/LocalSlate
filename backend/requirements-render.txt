@@ -10,3 +10,6 @@ python-dotenv
 jinja2
 aiofiles
 watchdog
+psutil
+greenlet
+cryptography

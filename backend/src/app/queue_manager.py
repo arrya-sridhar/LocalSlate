@@ -5,8 +5,21 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from watchdog.events import FileSystemEventHandler
-from watchdog.observers import Observer
+
+try:
+    from watchdog.events import FileSystemEventHandler
+    from watchdog.observers import Observer
+    WATCHDOG_AVAILABLE = True
+except ImportError:
+    WATCHDOG_AVAILABLE = False
+    class FileSystemEventHandler:  # type: ignore
+        pass
+    class Observer:  # type: ignore
+        def __init__(self, *args, **kwargs): pass
+        def schedule(self, *args, **kwargs): pass
+        def start(self, *args, **kwargs): pass
+        def stop(self, *args, **kwargs): pass
+        def join(self, *args, **kwargs): pass
 
 from backend.src.engine.audio_processor import transcribe_audio
 from backend.src.engine.slm_processor import structure_text
@@ -205,9 +218,13 @@ class AudioFileHandler(FileSystemEventHandler):
 class QueueManager:
     def __init__(self, process_callback=process_file):
         self.process_callback = process_callback
-        self.observer = Observer()
+        self.observer = Observer() if WATCHDOG_AVAILABLE else None
 
     def start(self) -> None:
+        if not WATCHDOG_AVAILABLE or self.observer is None:
+            logging.warning("Watchdog is not available. Queue monitoring is disabled.")
+            queue_status["is_running"] = False
+            return
         handler = AudioFileHandler(self.process_callback)
         self.observer.schedule(handler, str(CACHE_DIR), recursive=False)
         self.observer.start()
@@ -215,6 +232,9 @@ class QueueManager:
         logging.info("Queue Manager Observer started.")
 
     def stop(self) -> None:
+        if not WATCHDOG_AVAILABLE or self.observer is None:
+            queue_status["is_running"] = False
+            return
         self.observer.stop()
         self.observer.join()
         queue_status["is_running"] = False

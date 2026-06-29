@@ -96,26 +96,60 @@ class ActionableTask(Base):
 class DatabaseService:
     def __init__(self, db_path: Optional[Path] = None):
         # db_path parameter is kept for backward compatibility but ignored
+        self.db_type = os.getenv("DB_TYPE", "sqlite").lower()
         self.host = os.getenv("DB_HOST", "127.0.0.1")
         self.port = os.getenv("DB_PORT", "3306")
         self.user = os.getenv("DB_USER", "root")
         self.password = os.getenv("DB_PASSWORD", "root")
         self.db_name = os.getenv("DB_NAME", "localslate")
 
-        self.db_url = f"mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.db_name}"
+        if self.db_type == "mysql":
+            self.db_url = f"mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.db_name}"
+            try:
+                self.engine = create_engine(
+                    self.db_url,
+                    pool_size=10,
+                    max_overflow=20,
+                    pool_recycle=3600,
+                    pool_pre_ping=True,
+                )
+                self.SessionLocal = sessionmaker(
+                    autocommit=False, autoflush=False, bind=self.engine
+                )
+            except Exception as e:
+                logging.error(f"Failed to construct MySQL engine: {e}. Falling back to SQLite.")
+                self.db_type = "sqlite"
+                self.setup_sqlite()
+        else:
+            self.setup_sqlite()
 
-        # Connection pooling parameters
+        self.initialize()
+
+    def setup_sqlite(self) -> None:
+        db_dir = PROJECT_ROOT / "data"
+        db_dir.mkdir(parents=True, exist_ok=True)
+        sqlite_db_path = db_dir / f"{self.db_name}.db"
+        self.db_url = f"sqlite:///{sqlite_db_path}"
         self.engine = create_engine(
             self.db_url,
-            pool_size=10,
-            max_overflow=20,
-            pool_recycle=3600,
-            pool_pre_ping=True,
+            connect_args={"timeout": 30.0}
         )
         self.SessionLocal = sessionmaker(
             autocommit=False, autoflush=False, bind=self.engine
         )
-        self.initialize()
+
+        # Enable WAL mode and configure cache size for SQLite concurrency
+        from sqlalchemy import event
+        @event.listens_for(self.engine, "connect")
+        def set_sqlite_pragma(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            try:
+                cursor.execute("PRAGMA journal_mode=WAL;")
+                cursor.execute("PRAGMA synchronous=NORMAL;")
+            except Exception as e:
+                logging.warning(f"Failed to set SQLite PRAGMA journal_mode/synchronous: {e}")
+            finally:
+                cursor.close()
 
     def create_database_if_not_exists(self) -> None:
         try:
@@ -136,12 +170,22 @@ class DatabaseService:
             raise
 
     def initialize(self) -> None:
+        if self.db_type == "mysql":
+            try:
+                self.create_database_if_not_exists()
+                Base.metadata.create_all(bind=self.engine)
+                logging.info("MySQL database initialized successfully with SQLAlchemy.")
+                return
+            except Exception as e:
+                logging.error(f"Failed to initialize MySQL database: {e}. Falling back to SQLite.")
+                self.db_type = "sqlite"
+                self.setup_sqlite()
+
         try:
-            self.create_database_if_not_exists()
             Base.metadata.create_all(bind=self.engine)
-            logging.info("MySQL database initialized successfully with SQLAlchemy.")
+            logging.info(f"SQLite database '{self.db_name}' initialized successfully at {self.db_url}")
         except Exception as e:
-            logging.error(f"Failed to initialize MySQL database: {e}")
+            logging.error(f"Failed to initialize SQLite database: {e}")
             raise
 
     def get_connection(self):

@@ -164,8 +164,9 @@ To handle concurrent reads/writes and optimize transaction throughput:
 
 ## ☁️ Render Deployment Guide
 The web API and mock extraction demos are optimized to deploy easily on Render:
-- **Build Command**: `pip install uv && uv pip install -r backend/requirements-render.txt`
-- **Start Command**: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+- **Root Directory**: `backend`
+- **Build Command**: `pip install -r requirements-render.txt`
+- **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 - *Lightweight dependencies:* The Render deployment excludes heavyweight PyTorch and llama-cpp wheels, relying on local structured mock processing to showcase API flows.
 
 ---
