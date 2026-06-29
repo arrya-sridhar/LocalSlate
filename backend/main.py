@@ -1,9 +1,12 @@
 # ruff: noqa: E402
 import sys
+import logging
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+
+logging.basicConfig(level=logging.INFO)
 
 # Resolve and add project root to python path to avoid import errors
 PROJECT_ROOT = Path(__file__).resolve().parent.parent

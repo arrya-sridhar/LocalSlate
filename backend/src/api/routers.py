@@ -41,7 +41,6 @@ def read_root():
 @router.get("/health")
 def health_check(db: DatabaseService = Depends(get_db)):
     try:
-        # Check SQLite connection
         conn = db.get_connection()
         conn.close()
         db_ok = True
@@ -56,8 +55,35 @@ def health_check(db: DatabaseService = Depends(get_db)):
     }
 
 
+@router.get("/db-health")
+def get_db_health(db: DatabaseService = Depends(get_db)):
+    connected = False
+    try:
+        conn = db.get_connection()
+        conn.close()
+        connected = True
+    except Exception:
+        pass
+
+    return {
+        "database_type": "mysql",
+        "connected": connected,
+        "database_name": db.db_name,
+    }
+
+
 @router.get("/status")
 def get_status(db: DatabaseService = Depends(get_db)):
+    try:
+        conn = db.get_connection()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Database connection check failed before status: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "MySQL connection failed"},
+        )
+
     try:
         # Load CPU & RAM metrics safely
         cpu_usage = 0.0
@@ -75,7 +101,7 @@ def get_status(db: DatabaseService = Depends(get_db)):
         except Exception:
             pass
 
-        # Load SQLite stats
+        # Load database stats
         stats = db.get_db_stats()
 
         status_copy = dict(queue_status)
@@ -97,6 +123,16 @@ def get_status(db: DatabaseService = Depends(get_db)):
 @router.get("/incidents")
 def get_incidents(limit: int = 10, db: DatabaseService = Depends(get_db)):
     try:
+        conn = db.get_connection()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Database connection check failed before incidents fetch: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "MySQL connection failed"},
+        )
+
+    try:
         incidents = db.get_latest_incidents(limit=limit)
         return incidents
     except Exception as e:
@@ -109,6 +145,16 @@ def get_incidents(limit: int = 10, db: DatabaseService = Depends(get_db)):
 
 @router.delete("/incidents")
 def clear_incidents(db: DatabaseService = Depends(get_db)):
+    try:
+        conn = db.get_connection()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Database connection check failed before clear: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "MySQL connection failed"},
+        )
+
     try:
         db.clear_db()
         return {
@@ -129,6 +175,16 @@ def process_text(
     db: DatabaseService = Depends(get_db),
     slm: SLMService = Depends(get_slm),
 ):
+    try:
+        conn = db.get_connection()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Database connection check failed before processing: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "MySQL connection failed"},
+        )
+
     try:
         report = slm.extract_incident(request.text)
         db.insert_incident(report)
