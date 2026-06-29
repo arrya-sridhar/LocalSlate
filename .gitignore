@@ -26,3 +26,5 @@ data/failed_audio/*
 # OS generated files
 .DS_Store
 Thumbs.db
+
+hackathon_3/
