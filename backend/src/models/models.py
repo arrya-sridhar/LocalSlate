@@ -1,6 +1,6 @@
 import datetime
 import uuid
-from typing import List, Literal
+from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -31,3 +31,6 @@ class IncidentReport(BaseModel):
     )
     identified_entities: Entities
     actionable_tasks: List[Task] = Field(default_factory=list)
+    incident_type: Optional[str] = Field(None, description="Type of the incident")
+    location: Optional[str] = Field(None, description="Primary location")
+    affected_systems: Optional[List[str]] = Field(None, description="List of affected systems")

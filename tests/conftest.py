@@ -17,6 +17,8 @@ def reset_singletons(monkeypatch):
 
     # Automatically initialize and clear the test database
     try:
+        db_service = db_mod.get_db_service()
+        db_mod.Base.metadata.drop_all(bind=db_service.engine)
         db_mod.init_db()
         db_mod.clear_db()
     except Exception:

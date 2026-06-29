@@ -38,6 +38,9 @@ class Incident(Base):
     computed_priority_level = Column(String(50), nullable=False)
     system_summary = Column(String(1000), nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    incident_type = Column(String(255), nullable=True)
+    location = Column(String(255), nullable=True)
+    affected_systems = Column(String(1000), nullable=True)
 
     locations = relationship(
         "IdentifiedLocation", back_populates="incident", cascade="all, delete-orphan"
@@ -165,6 +168,9 @@ class DatabaseService:
                 iso_timestamp=incident.iso_timestamp,
                 computed_priority_level=incident.computed_priority_level,
                 system_summary=incident.system_summary,
+                incident_type=incident.incident_type,
+                location=incident.location,
+                affected_systems=", ".join(incident.affected_systems) if incident.affected_systems else None,
             )
 
             for loc in incident.identified_entities.locations:
@@ -221,6 +227,9 @@ class DatabaseService:
                             {"task_desc": task.task_desc, "urgency": task.urgency}
                             for task in inc.tasks
                         ],
+                        "incident_type": inc.incident_type,
+                        "location": inc.location,
+                        "affected_systems": [sys.strip() for sys in inc.affected_systems.split(",")] if inc.affected_systems else [],
                     }
                 )
             return incidents

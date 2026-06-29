@@ -144,3 +144,47 @@ def test_building_a_fire_flow():
         in saved_incident["identified_entities"]["locations"]
     )
     assert "two workers" in saved_incident["identified_entities"]["personnel"]
+
+
+def test_water_leakage_exact_sentence_flow():
+    # Submit unstructured text to POST /process
+    text = "A water pipe burst in Server Room B. Water is reaching electrical equipment and cooling system is down."
+    payload = {"text": text}
+    response = client.post("/process", json=payload)
+    assert response.status_code == 200
+    report = response.json()
+    assert "incident_id" in report
+    
+    # Assert correct extraction of severity/priority
+    assert report["computed_priority_level"] == "HIGH"
+    
+    # Assert extra rule-based fields
+    assert report["incident_type"] == "Water Leakage"
+    assert report["location"] == "Server Room B"
+    assert report["affected_systems"] == ["Electrical Equipment", "Cooling System"]
+    
+    # Assert actionable tasks (order matches exactly: Shut off water supply, Isolate electrical equipment, Repair burst pipe, Restore cooling system)
+    tasks = report["actionable_tasks"]
+    task_descs = [t["task_desc"] for t in tasks]
+    assert task_descs == [
+        "Shut off water supply",
+        "Isolate electrical equipment",
+        "Repair burst pipe",
+        "Restore cooling system"
+    ]
+    
+    # Assert tasks urgency is HIGH
+    for t in tasks:
+        assert t["urgency"] == "HIGH"
+
+    # Retrieve incidents using GET /incidents to ensure it's saved in MySQL
+    get_response = client.get("/incidents")
+    assert get_response.status_code == 200
+    incidents = get_response.json()
+    assert len(incidents) == 1
+    saved_incident = incidents[0]
+    assert saved_incident["incident_id"] == report["incident_id"]
+    assert saved_incident["incident_type"] == "Water Leakage"
+    assert saved_incident["location"] == "Server Room B"
+    assert saved_incident["affected_systems"] == ["Electrical Equipment", "Cooling System"]
+
