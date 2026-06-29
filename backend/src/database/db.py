@@ -37,7 +37,9 @@ class Incident(Base):
     iso_timestamp = Column(String(255), nullable=False)
     computed_priority_level = Column(String(50), nullable=False)
     system_summary = Column(String(1000), nullable=False)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(
+        DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc)
+    )
     incident_type = Column(String(255), nullable=True)
     location = Column(String(255), nullable=True)
     affected_systems = Column(String(1000), nullable=True)
@@ -170,7 +172,9 @@ class DatabaseService:
                 system_summary=incident.system_summary,
                 incident_type=incident.incident_type,
                 location=incident.location,
-                affected_systems=", ".join(incident.affected_systems) if incident.affected_systems else None,
+                affected_systems=", ".join(incident.affected_systems)
+                if incident.affected_systems
+                else None,
             )
 
             for loc in incident.identified_entities.locations:
@@ -229,7 +233,11 @@ class DatabaseService:
                         ],
                         "incident_type": inc.incident_type,
                         "location": inc.location,
-                        "affected_systems": [sys.strip() for sys in inc.affected_systems.split(",")] if inc.affected_systems else [],
+                        "affected_systems": [
+                            sys.strip() for sys in inc.affected_systems.split(",")
+                        ]
+                        if inc.affected_systems
+                        else [],
                     }
                 )
             return incidents

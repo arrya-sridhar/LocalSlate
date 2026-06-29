@@ -299,7 +299,9 @@ def mock_extraction(text: str) -> dict:
 
     report = {
         "incident_id": str(uuid.uuid4()),
-        "iso_timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+        "iso_timestamp": datetime.datetime.now(datetime.timezone.utc)
+        .isoformat()
+        .replace("+00:00", "Z"),
         "computed_priority_level": priority,
         "system_summary": summary,
         "identified_entities": {
@@ -311,7 +313,7 @@ def mock_extraction(text: str) -> dict:
         "location": None,
         "affected_systems": None,
     }
-    
+
     report = apply_rule_fallback_if_needed(report, text)
     return report
 
@@ -335,17 +337,29 @@ def check_ram_usage() -> bool:
 
 def apply_rule_fallback_if_needed(report_data: dict, text: str) -> dict:
     text_lower = text.lower()
-    has_water_leak = "water leak" in text_lower or "leak" in text_lower or "water leakage" in text_lower
-    has_pipe_burst = "pipe burst" in text_lower or "burst pipe" in text_lower or "burst" in text_lower
+    has_water_leak = (
+        "water leak" in text_lower
+        or "leak" in text_lower
+        or "water leakage" in text_lower
+    )
+    has_pipe_burst = (
+        "pipe burst" in text_lower
+        or "burst pipe" in text_lower
+        or "burst" in text_lower
+    )
     has_server_room = "server room" in text_lower
     has_electrical = "electrical" in text_lower
     has_cooling = "cooling" in text_lower
 
-    if (has_water_leak or has_pipe_burst) and (has_server_room or has_electrical or has_cooling):
+    if (has_water_leak or has_pipe_burst) and (
+        has_server_room or has_electrical or has_cooling
+    ):
         report_data["incident_type"] = "Water Leakage"
-        
+
         loc = "Server Room"
-        room_match = re.search(r"\bserver\s+room\s+([A-Za-z0-9])\b", text, re.IGNORECASE)
+        room_match = re.search(
+            r"\bserver\s+room\s+([A-Za-z0-9])\b", text, re.IGNORECASE
+        )
         if room_match:
             loc = f"Server Room {room_match.group(1).upper()}"
         elif "room b" in text_lower:
@@ -364,12 +378,14 @@ def apply_rule_fallback_if_needed(report_data: dict, text: str) -> dict:
         tasks = []
         tasks.append({"task_desc": "Shut off water supply", "urgency": "HIGH"})
         if has_electrical:
-            tasks.append({"task_desc": "Isolate electrical equipment", "urgency": "HIGH"})
+            tasks.append(
+                {"task_desc": "Isolate electrical equipment", "urgency": "HIGH"}
+            )
         if has_pipe_burst:
             tasks.append({"task_desc": "Repair burst pipe", "urgency": "HIGH"})
         if has_cooling:
             tasks.append({"task_desc": "Restore cooling system", "urgency": "HIGH"})
-            
+
         report_data["actionable_tasks"] = tasks
 
     return report_data
@@ -452,7 +468,7 @@ class SLMProcessor:
                         output_text = output_text[4:].strip()
 
                 report_data = json.loads(output_text)
-                
+
                 # Apply post-processing fallback logic
                 report_data = apply_rule_fallback_if_needed(report_data, text)
 

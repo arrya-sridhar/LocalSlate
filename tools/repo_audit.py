@@ -34,7 +34,7 @@ def check_trailing_whitespace():
                 lines = path.read_text(encoding="utf-8").splitlines()
                 for i, line in enumerate(lines):
                     if line.endswith(" ") or line.endswith("\t"):
-                        bad_files.append(f"{path}:{i+1}")
+                        bad_files.append(f"{path}:{i + 1}")
                         break
     if bad_files:
         return False, f"Found trailing whitespaces in: {', '.join(bad_files[:5])}"

@@ -154,15 +154,15 @@ def test_water_leakage_exact_sentence_flow():
     assert response.status_code == 200
     report = response.json()
     assert "incident_id" in report
-    
+
     # Assert correct extraction of severity/priority
     assert report["computed_priority_level"] == "HIGH"
-    
+
     # Assert extra rule-based fields
     assert report["incident_type"] == "Water Leakage"
     assert report["location"] == "Server Room B"
     assert report["affected_systems"] == ["Electrical Equipment", "Cooling System"]
-    
+
     # Assert actionable tasks (order matches exactly: Shut off water supply, Isolate electrical equipment, Repair burst pipe, Restore cooling system)
     tasks = report["actionable_tasks"]
     task_descs = [t["task_desc"] for t in tasks]
@@ -170,9 +170,9 @@ def test_water_leakage_exact_sentence_flow():
         "Shut off water supply",
         "Isolate electrical equipment",
         "Repair burst pipe",
-        "Restore cooling system"
+        "Restore cooling system",
     ]
-    
+
     # Assert tasks urgency is HIGH
     for t in tasks:
         assert t["urgency"] == "HIGH"
@@ -186,5 +186,7 @@ def test_water_leakage_exact_sentence_flow():
     assert saved_incident["incident_id"] == report["incident_id"]
     assert saved_incident["incident_type"] == "Water Leakage"
     assert saved_incident["location"] == "Server Room B"
-    assert saved_incident["affected_systems"] == ["Electrical Equipment", "Cooling System"]
-
+    assert saved_incident["affected_systems"] == [
+        "Electrical Equipment",
+        "Cooling System",
+    ]

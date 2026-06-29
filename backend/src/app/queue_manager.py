@@ -200,6 +200,9 @@ def process_file(file_path: Path) -> None:
                 system_summary=f"FAILED PROCESSING: {str(e)[:200]}",
                 identified_entities=Entities(locations=[], personnel=[]),
                 actionable_tasks=[],
+                incident_type=None,
+                location=None,
+                affected_systems=None,
             ).model_dump()
             insert_incident(fallback_report)
         except Exception as db_err:
