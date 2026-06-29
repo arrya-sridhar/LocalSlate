@@ -169,6 +169,17 @@ The web API and mock extraction demos are optimized to deploy easily on Render:
 - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 - *Lightweight dependencies:* The Render deployment excludes heavyweight PyTorch and llama-cpp wheels, relying on local structured mock processing to showcase API flows.
 
+### Render Environment Variables Setup
+To enable database persistence on Render, configure the following Environment Variables in your Render Dashboard (under **Environment** settings for your Web Service):
+- `DB_HOST`: The internal host address of your Render MySQL Database. **DO NOT set this to `127.0.0.1`** as localhost connection is not allowed on Render.
+- `DB_PORT`: The connection port for the database (default: `3306`).
+- `DB_NAME`: The database name.
+- `DB_USER`: The database user.
+- `DB_PASSWORD`: The database password.
+
+*Graceful Degradation:* If `DB_HOST` is missing or is set to `127.0.0.1` on Render, the application will automatically initialize in **disconnected fallback mode**. In this mode, the server starts up successfully without crashing, and endpoints like `/status` and `/health` remain online.
+
+
 ---
 
 ## 🛠️ Troubleshooting

@@ -75,16 +75,6 @@ def get_db_health(db: DatabaseService = Depends(get_db)):
 @router.get("/status")
 def get_status(db: DatabaseService = Depends(get_db)):
     try:
-        conn = db.get_connection()
-        conn.close()
-    except Exception as e:
-        logging.error(f"Database connection check failed before status: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": "MySQL connection failed"},
-        )
-
-    try:
         # Load CPU & RAM metrics safely
         cpu_usage = 0.0
         ram_percent = 0.0
@@ -101,7 +91,7 @@ def get_status(db: DatabaseService = Depends(get_db)):
         except Exception:
             pass
 
-        # Load database stats
+        # Load database stats (does not throw even if DB is offline)
         stats = db.get_db_stats()
 
         status_copy = dict(queue_status)
@@ -123,13 +113,15 @@ def get_status(db: DatabaseService = Depends(get_db)):
 @router.get("/incidents")
 def get_incidents(limit: int = 10, db: DatabaseService = Depends(get_db)):
     try:
+        if not db.host:
+            raise ConnectionError("Database host is not configured.")
         conn = db.get_connection()
         conn.close()
     except Exception as e:
         logging.error(f"Database connection check failed before incidents fetch: {e}")
         return JSONResponse(
-            status_code=500,
-            content={"error": "MySQL connection failed"},
+            status_code=503,
+            content={"error": f"Database is currently unavailable: {str(e)}"},
         )
 
     try:
@@ -146,13 +138,15 @@ def get_incidents(limit: int = 10, db: DatabaseService = Depends(get_db)):
 @router.delete("/incidents")
 def clear_incidents(db: DatabaseService = Depends(get_db)):
     try:
+        if not db.host:
+            raise ConnectionError("Database host is not configured.")
         conn = db.get_connection()
         conn.close()
     except Exception as e:
         logging.error(f"Database connection check failed before clear: {e}")
         return JSONResponse(
-            status_code=500,
-            content={"error": "MySQL connection failed"},
+            status_code=503,
+            content={"error": f"Database is currently unavailable: {str(e)}"},
         )
 
     try:
@@ -176,24 +170,34 @@ def process_text(
     slm: SLMService = Depends(get_slm),
 ):
     try:
+        if not db.host:
+            raise ConnectionError("Database host is not configured.")
         conn = db.get_connection()
         conn.close()
     except Exception as e:
         logging.error(f"Database connection check failed before processing: {e}")
         return JSONResponse(
-            status_code=500,
-            content={"error": "MySQL connection failed"},
+            status_code=503,
+            content={"error": f"Database connection failed: {str(e)}"},
         )
 
     try:
         report = slm.extract_incident(request.text)
-        db.insert_incident(report)
-        return report
     except Exception as e:
-        logging.error(f"Failed to process text incident directly: {e}")
+        logging.error(f"Failed to extract incident during direct processing: {e}")
         return JSONResponse(
             status_code=500,
             content={"error": f"Failed to process text report: {str(e)}"},
+        )
+
+    try:
+        db.insert_incident(report)
+        return report
+    except Exception as e:
+        logging.error(f"Failed to save incident report during direct processing: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"error": f"Failed to save incident report: {str(e)}"},
         )
 
 

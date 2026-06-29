@@ -1,7 +1,7 @@
 import os
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 import pymysql
 from dotenv import load_dotenv
 
@@ -101,26 +101,55 @@ class ActionableTask(Base):
 class DatabaseService:
     def __init__(self, db_path: Optional[Path] = None):
         # db_path parameter is kept for backward compatibility but ignored
-        self.host = os.getenv("DB_HOST", "127.0.0.1")
+        self.engine: Optional[Any] = None
+        self.SessionLocal: Optional[Any] = None
+
+        is_render = "RENDER" in os.environ or "RENDER_SERVICE_ID" in os.environ
+        host_env = os.getenv("DB_HOST")
+
+        if is_render:
+            if not host_env or host_env == "127.0.0.1":
+                logging.warning(
+                    "Running on Render but DB_HOST is missing or set to 127.0.0.1. "
+                    "MySQL host 127.0.0.1 is not allowed on Render. Skipping DB connection."
+                )
+                self.host = ""
+            else:
+                self.host = host_env
+        else:
+            self.host = host_env or "127.0.0.1"
+
         self.port = os.getenv("DB_PORT", "3306")
         self.user = os.getenv("DB_USER", "root")
         self.password = os.getenv("DB_PASSWORD", "root")
         self.db_name = os.getenv("DB_NAME", "localslate")
 
-        self.db_url = f"mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.db_name}"
-        self.engine = create_engine(
-            self.db_url,
-            pool_size=10,
-            max_overflow=20,
-            pool_recycle=3600,
-            pool_pre_ping=True,
-        )
-        self.SessionLocal = sessionmaker(
-            autocommit=False, autoflush=False, bind=self.engine
-        )
-        self.initialize()
+        if self.host:
+            self.db_url = f"mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.db_name}"
+            self.engine = create_engine(
+                self.db_url,
+                pool_size=10,
+                max_overflow=20,
+                pool_recycle=3600,
+                pool_pre_ping=True,
+            )
+            self.SessionLocal = sessionmaker(
+                autocommit=False, autoflush=False, bind=self.engine
+            )
+            logging.info(
+                f"Database Service: connecting to host={self.host}:{self.port}, "
+                f"db={self.db_name}, user={self.user}"
+            )
+            self.initialize()
+        else:
+            self.db_url = ""
+            self.engine = None
+            self.SessionLocal = None
+            logging.warning("Database Service: initialized in disconnected mode.")
 
     def create_database_if_not_exists(self) -> None:
+        if not self.host:
+            return
         try:
             conn = pymysql.connect(
                 host=self.host,
@@ -139,16 +168,24 @@ class DatabaseService:
             raise
 
     def initialize(self) -> None:
+        if not self.host or self.engine is None:
+            logging.warning(
+                "Database Service: Skipping initialization in disconnected mode."
+            )
+            return
         try:
             self.create_database_if_not_exists()
             Base.metadata.create_all(bind=self.engine)
             logging.info("MySQL database initialized successfully with SQLAlchemy.")
         except Exception as e:
             logging.error(f"Failed to initialize MySQL database: {e}")
-            raise
 
     def get_connection(self):
         # Health check expects a closeable connection object
+        if not self.engine:
+            raise ConnectionError(
+                "Database is currently disconnected (no host configured)."
+            )
         try:
             return self.engine.raw_connection()
         except Exception as e:
@@ -160,6 +197,11 @@ class DatabaseService:
             incident = IncidentReport(**json_data)
         except Exception as e:
             raise ValueError(f"Failed to validate JSON data against schema: {e}")
+
+        if not self.SessionLocal:
+            raise ConnectionError(
+                "Database is currently disconnected (no host configured)."
+            )
 
         db = self.SessionLocal()
         try:
@@ -199,6 +241,10 @@ class DatabaseService:
             db.close()
 
     def get_latest_incidents(self, limit: int = 5) -> list:
+        if not self.SessionLocal:
+            logging.warning("Cannot fetch latest incidents: database is disconnected.")
+            return []
+
         db = self.SessionLocal()
         try:
             results = (
@@ -248,7 +294,6 @@ class DatabaseService:
             db.close()
 
     def get_db_stats(self) -> dict:
-        db = self.SessionLocal()
         stats = {
             "total": 0,
             "CRITICAL": 0,
@@ -256,6 +301,11 @@ class DatabaseService:
             "MEDIUM": 0,
             "LOW": 0,
         }
+        if not self.SessionLocal:
+            logging.warning("Cannot get database stats: database is disconnected.")
+            return stats
+
+        db = self.SessionLocal()
         try:
             stats["total"] = db.query(Incident).count()
             group_counts = (
@@ -275,6 +325,11 @@ class DatabaseService:
         return stats
 
     def clear_db(self) -> None:
+        if not self.SessionLocal:
+            raise ConnectionError(
+                "Database is currently disconnected (no host configured)."
+            )
+
         db = self.SessionLocal()
         try:
             db.begin()

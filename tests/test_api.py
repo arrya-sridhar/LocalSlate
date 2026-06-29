@@ -190,3 +190,44 @@ def test_water_leakage_exact_sentence_flow():
         "Electrical Equipment",
         "Cooling System",
     ]
+
+
+def test_disconnected_database_fallback(monkeypatch):
+    # Simulate Render deployment where DB is missing/empty
+    monkeypatch.setenv("RENDER", "true")
+    monkeypatch.setenv("DB_HOST", "")
+
+    # Reset singletons to force DB service recreation in disconnected mode
+    import backend.src.database.db as db_mod
+
+    db_mod._global_db_service = None
+
+    # Test /health endpoint (must always return 200 OK)
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json()["ok"] is False
+    assert response.json()["database"] == "error"
+
+    # Test /db-health endpoint
+    response = client.get("/db-health")
+    assert response.status_code == 200
+    assert response.json()["connected"] is False
+
+    # Test /status endpoint (must not fail!)
+    response = client.get("/status")
+    assert response.status_code == 200
+    data = response.json()
+    assert "is_running" in data
+    assert "db_stats" in data
+    assert data["db_stats"]["total"] == 0
+
+    # Test /incidents endpoint (returns clear 503 error)
+    response = client.get("/incidents")
+    assert response.status_code == 503
+    assert "error" in response.json()
+
+    # Test /process endpoint (returns clear 503 error)
+    payload = {"text": "Simple test incident note."}
+    response = client.post("/process", json=payload)
+    assert response.status_code == 503
+    assert "error" in response.json()
