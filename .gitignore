@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Python
 __pycache__/
 *.py[cod]
@@ -12,6 +11,7 @@ data/*.sqlite3
 data/cache/*
 data/queue/*
 data/failed_audio/*
+data/localslate.log
 !data/cache/.gitkeep
 !data/queue/.gitkeep
 !data/failed_audio/.gitkeep
@@ -25,10 +25,9 @@ data/failed_audio/*
 # OS generated files
 .DS_Store
 Thumbs.db
-=======
-__pycache__/
-*.py[cod]
-*.db
-*.sqlite
-*.sqlite3
->>>>>>> dc0bf258ca77acc42e1214cdd61089ff33906839
+
+# Node / Web Frontend
+web/node_modules/
+web/.next/
+web/dist/
+web/.env.local
