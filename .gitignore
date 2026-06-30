@@ -13,6 +13,7 @@ data/*.sqlite3
 data/cache/*
 data/queue/*
 data/failed_audio/*
+data/localslate.log
 !data/cache/.gitkeep
 !data/queue/.gitkeep
 !data/failed_audio/.gitkeep
@@ -28,3 +29,9 @@ data/failed_audio/*
 Thumbs.db
 
 hackathon_3/
+
+# Node / Web Frontend
+web/node_modules/
+web/.next/
+web/dist/
+web/.env.local
