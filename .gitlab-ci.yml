@@ -16,7 +16,7 @@ default:
     - export PATH="/Users/arryasridhar/.local/bin:$PATH"
     - export NVM_DIR="$HOME/.nvm"
     - '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"'
-    - uv venv || true
+    - uv venv --python 3.11 || true
     - source .venv/bin/activate
     - uv pip install -r requirements.txt
 
