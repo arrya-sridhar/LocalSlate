@@ -3,6 +3,7 @@ LocalSlate API Server
 FastAPI wrapper around the existing engine modules.
 Provides REST endpoints for the web dashboard frontend.
 """
+
 # ruff: noqa: E402
 import sys
 import time
