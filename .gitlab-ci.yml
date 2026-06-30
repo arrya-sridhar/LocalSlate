@@ -1,5 +1,5 @@
 # .gitlab-ci.yml
-# LocalSlate GitLab CI/CD Pipeline
+# LocalSlate GitLab CI/CD Pipeline (macOS Unix Shell Runner)
 
 stages:
   - lint
@@ -11,15 +11,18 @@ stages:
   - deploy
   - release
 
-variables:
-  PYTHON: 'C:\Users\srees\AppData\Local\Programs\Python\Python312\python.exe'
+default:
+  before_script:
+    - uv venv || true
+    - source .venv/bin/activate
+    - uv pip install -r requirements.txt
 
 # --- LINT STAGE ---
 ruff-check:
   stage: lint
   script:
-    - '& "$env:PYTHON" -m pip install ruff'
-    - '& "$env:PYTHON" -m ruff check src tests tools'
+    - uv pip install ruff
+    - python -m ruff check src tests tools
 
 eslint-web:
   stage: lint
@@ -32,16 +35,15 @@ eslint-web:
 black-check:
   stage: format
   script:
-    - '& "$env:PYTHON" -m pip install black'
-    - '& "$env:PYTHON" -m black --check src tests tools'
+    - uv pip install black
+    - python -m black --check src tests tools
 
 # --- TYPE_CHECK STAGE ---
 mypy-check:
   stage: type_check
   script:
-    - '& "$env:PYTHON" -m pip install mypy'
-    - '& "$env:PYTHON" -m pip install -r requirements.txt'
-    - '& "$env:PYTHON" -m mypy src tests tools || exit 0'
+    - uv pip install mypy
+    - python -m mypy src tests tools || exit 0
 
 tsc-web:
   stage: type_check
@@ -54,25 +56,22 @@ tsc-web:
 unit-tests:
   stage: test
   script:
-    - '& "$env:PYTHON" -m pip install pytest'
-    - '& "$env:PYTHON" -m pip install -r requirements.txt'
-    - '$env:PYTHONPATH = "."'
-    - '& "$env:PYTHON" -m pytest'
+    - uv pip install pytest
+    - PYTHONPATH="." python -m pytest
 
 # --- SECURITY STAGE ---
 security-scan:
   stage: security
   script:
-    - '& "$env:PYTHON" -m pip install bandit'
-    - '& "$env:PYTHON" -m bandit -r src/ -ll'
+    - uv pip install bandit
+    - python -m bandit -r src/ -ll
   allow_failure: true
 
 # --- AUDIT STAGE ---
 dependency_audit:
   stage: audit
   script:
-    - '& "$env:PYTHON" -m pip install -r requirements.txt'
-    - '& "$env:PYTHON" tools/repo_audit.py'
+    - python tools/repo_audit.py
 
 # --- DEPLOY STAGE ---
 pages:
@@ -95,6 +94,6 @@ pages:
 cli_release:
   stage: release
   script:
-    - echo "Release job running on Windows Shell. To properly release, download artifacts manually or configure GitLab Release CLI for Windows."
+    - echo "Release job running on Unix Shell."
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
