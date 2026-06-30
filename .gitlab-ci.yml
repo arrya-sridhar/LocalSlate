@@ -12,38 +12,38 @@ cache:
 black-check:
   stage: lint
   script:
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pip install --upgrade pip
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pip install -r requirements.txt
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pip install black
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m black --check src tests tools
+    - python -m pip install --upgrade pip
+    - python -m pip install -r requirements.txt
+    - python -m pip install black
+    - python -m black --check src tests tools
 
 ruff-check:
   stage: lint
   script:
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pip install --upgrade pip
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pip install -r requirements.txt
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pip install ruff
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m ruff check src tests tools
+    - python -m pip install --upgrade pip
+    - python -m pip install -r requirements.txt
+    - python -m pip install ruff
+    - python -m ruff check src tests tools
 
 mypy-check:
   stage: lint
   script:
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pip install --upgrade pip
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pip install -r requirements.txt
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pip install mypy
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m mypy src tests tools
+    - python -m pip install --upgrade pip
+    - python -m pip install -r requirements.txt
+    - python -m pip install mypy
+    - python -m mypy src tests tools
 
 repo-audit:
   stage: lint
   script:
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pip install --upgrade pip
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pip install -r requirements.txt
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" tools/repo_audit.py
+    - python -m pip install --upgrade pip
+    - python -m pip install -r requirements.txt
+    - python tools/repo_audit.py
 
 unit-tests:
   stage: test
   script:
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pip install --upgrade pip
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pip install -r requirements.txt
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pip install pytest
-    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pytest
+    - python -m pip install --upgrade pip
+    - python -m pip install -r requirements.txt
+    - python -m pip install pytest
+    - python -m pytest
