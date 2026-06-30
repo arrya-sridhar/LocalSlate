@@ -3,41 +3,48 @@ stages:
   - test
 
 variables:
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  PYTHON: 'C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe'
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR\.cache\pip"
 
 cache:
   paths:
     - .cache/pip/
 
-before_script:
-  - python -m pip install --upgrade pip
-  - python -m pip install -r requirements.txt
-
 black-check:
   stage: lint
   script:
-    - python -m pip install black
-    - python -m black --check backend/src tests tools
+    - '& "$env:PYTHON" -m pip install --upgrade pip'
+    - '& "$env:PYTHON" -m pip install -r requirements.txt'
+    - '& "$env:PYTHON" -m pip install black'
+    - '& "$env:PYTHON" -m black --check src tests tools'
 
 ruff-check:
   stage: lint
   script:
-    - python -m pip install ruff
-    - python -m ruff check backend/src tests tools
+    - '& "$env:PYTHON" -m pip install --upgrade pip'
+    - '& "$env:PYTHON" -m pip install -r requirements.txt'
+    - '& "$env:PYTHON" -m pip install ruff'
+    - '& "$env:PYTHON" -m ruff check src tests tools'
 
 mypy-check:
   stage: lint
   script:
-    - python -m pip install mypy
-    - python -m mypy backend/src tests tools
+    - '& "$env:PYTHON" -m pip install --upgrade pip'
+    - '& "$env:PYTHON" -m pip install -r requirements.txt'
+    - '& "$env:PYTHON" -m pip install mypy'
+    - '& "$env:PYTHON" -m mypy src tests tools'
 
 repo-audit:
   stage: lint
   script:
-    - python tools/repo_audit.py
+    - '& "$env:PYTHON" -m pip install --upgrade pip'
+    - '& "$env:PYTHON" -m pip install -r requirements.txt'
+    - '& "$env:PYTHON" tools/repo_audit.py'
 
 unit-tests:
   stage: test
   script:
-    - python -m pip install pytest
-    - python -m pytest
+    - '& "$env:PYTHON" -m pip install --upgrade pip'
+    - '& "$env:PYTHON" -m pip install -r requirements.txt'
+    - '& "$env:PYTHON" -m pip install pytest'
+    - '& "$env:PYTHON" -m pytest'
