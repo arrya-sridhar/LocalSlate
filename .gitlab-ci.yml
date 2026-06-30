@@ -38,7 +38,7 @@ repo-audit:
   script:
     - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pip install --upgrade pip
     - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" -m pip install -r requirements.txt
-    - py tools/repo_audit.py
+    - "C:\Users\srees\AppData\Local\Programs\Python\Python313\python.exe" tools/repo_audit.py
 
 unit-tests:
   stage: test
