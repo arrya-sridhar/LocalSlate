@@ -34,3 +34,21 @@ disable = [
     "wrong-import-position",   # Justified: sys.path is dynamically resolved at runtime in main.py/run.py before importing source components.
     "no-member"                # Justified: Wave_read / Wave_write dynamic context outputs and library components trigger false positives in pylint's static type inference engine.
 ]
+
+[tool.coverage.run]
+source = ["backend"]
+omit = [
+    "backend/run.py",
+    "backend/src/app/dashboard.py"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "except ImportError:",
+    "except Exception as e:",
+    "pass"
+]

@@ -237,8 +237,25 @@ To maintain the high standards of security, code quality, and compliance in Loca
   .venv\Scripts\python -m vulture backend tests tools
   ```
 
+### 4. Release & Compliance Automation
+* **Automated Changelog Generation (git-cliff)**:
+  ```bash
+  git cliff -o CHANGELOG.md
+  ```
+* **Git Version Tagging**:
+  ```bash
+  git tag -a v2.0.0 -m "Release v2.0.0: LocalSlate quality, security, and compliance release"
+  ```
+
 ---
 
 ## 🛠️ Troubleshooting
 * **ModuleNotFoundError on pytest**: Run tests via `pytest` (configured with `pytest.ini`).
 * **MySQL Connection Failures**: Check that the MySQL server is running, the port is open, and `.env` credentials are correct.
+
+---
+
+## 📄 License
+
+LocalSlate is open-source software licensed under the [GNU Affero General Public License version 3 (AGPLv3)](file:///c:/Users/srees/hackathon_3-1/LICENSE).
+

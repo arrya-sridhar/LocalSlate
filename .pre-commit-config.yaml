@@ -1,5 +1,5 @@
 # .pre-commit-config.yaml
-# LocalSlate DevOps Quality Configuration
+# LocalSlate DevOps Quality & Security Configuration
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -43,3 +43,15 @@ repos:
       - id: mypy
         name: "Strict Static Type Check (Mypy)"
         additional_dependencies: [pydantic, types-psutil]
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.9
+    hooks:
+      - id: bandit
+        args: ["-c", "pyproject.toml"]
+        additional_dependencies: ["bandit[toml]"]
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.2
+    hooks:
+      - id: gitleaks

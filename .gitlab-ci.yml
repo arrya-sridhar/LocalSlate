@@ -3,7 +3,11 @@
 
 stages:
   - lint
+  - format
+  - type_check
   - test
+  - coverage
+  - security
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
@@ -15,7 +19,7 @@ cache:
 
 # Job 1: Code formatting (Black)
 black-check:
-  stage: lint
+  stage: format
   script:
     - pip install uv
     - uv venv
@@ -37,7 +41,7 @@ ruff-check:
 
 # Job 3: Type checking (Mypy)
 mypy-check:
-  stage: lint
+  stage: type_check
   script:
     - pip install uv
     - uv venv
@@ -80,7 +84,7 @@ vulture-check:
 
 # Job 7: Security check (Bandit)
 bandit-check:
-  stage: lint
+  stage: security
   script:
     - pip install uv
     - uv venv
@@ -136,14 +140,14 @@ pyupgrade-check:
 
 # Job 12: Secrets scanning (Gitleaks)
 gitleaks-scan:
-  stage: lint
+  stage: security
   script:
     # Expects gitleaks binary in PATH or environment
     - gitleaks detect --source . --no-git --config .gitleaks.toml
 
 # Job 13: Dependency vulnerability audit (Pip-audit)
 pip-audit-check:
-  stage: lint
+  stage: security
   script:
     - pip install uv
     - uv venv
@@ -152,3 +156,13 @@ pip-audit-check:
     - uv pip install pip-audit
     - pip-audit --ignore-vuln CVE-2025-69872
 
+# Job 14: Coverage check (pytest-cov)
+coverage-test:
+  stage: coverage
+  script:
+    - pip install uv
+    - uv venv
+    - .venv\Scripts\activate || source .venv/bin/activate
+    - uv pip install -r backend/requirements.txt
+    - uv pip install pytest pytest-cov
+    - pytest --cov=backend --cov-report=term-missing --cov-fail-under=70
