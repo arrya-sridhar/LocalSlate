@@ -148,9 +148,43 @@
             <button type="submit" class="btn btn-primary" id="submit-text-btn">⚡ Run Extraction</button>
           </div>
         </form>
-        
+
+        <!-- Voice Recorder Portal -->
         <hr style="border: 0; border-top: 1px solid var(--panel-border); margin: 1.5rem 0;">
-        
+        <div class="voice-recorder-section">
+          <label class="form-label" style="font-weight: 600; display: block; margin-bottom: 0.5rem;">🎙️ Voice Recorder Portal:</label>
+          <div style="display: flex; gap: 1rem; align-items: center; margin-top: 0.5rem; flex-wrap: wrap;">
+            <button type="button" class="btn" id="start-record-btn" style="background-color: var(--accent-red); color: white; display: flex; align-items: center; gap: 0.5rem; border: none; cursor: pointer; transition: transform 0.1s ease;">
+              <span>🔴</span> Record Issue
+            </button>
+            <button type="button" class="btn" id="stop-record-btn" disabled style="background-color: var(--text-muted); color: white; display: flex; align-items: center; gap: 0.5rem; border: none; cursor: not-allowed; transition: transform 0.1s ease;">
+              <span>⏹️</span> Stop Recording
+            </button>
+            <span id="record-status" style="color: var(--accent-red); font-size: 0.9rem; font-style: italic; font-weight: bold; display: none; animation: pulse 1.5s infinite;">
+              🔴 Recording...
+            </span>
+          </div>
+
+          <!-- Recording result panel -->
+          <div id="recording-result-panel" style="margin-top: 1.5rem; padding: 1.25rem; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--panel-border); border-radius: 8px; display: none; box-shadow: var(--shadow-sm);">
+            <h3 style="font-size: 0.95rem; margin-bottom: 0.75rem; color: var(--accent-cyan); font-weight: 700;">Latest Recording Result:</h3>
+            <div style="margin-bottom: 0.75rem;">
+              <span style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 0.25rem; color: var(--text-secondary);">Audio Transcript:</span>
+              <p id="record-transcript-val" style="font-size: 0.9rem; background: rgba(0,0,0,0.25); padding: 0.75rem; border-radius: 6px; line-height: 1.4; margin: 0; color: var(--text-primary); border: 1px solid var(--panel-border);"></p>
+            </div>
+            <div style="margin-bottom: 0.75rem;">
+              <span style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 0.25rem; color: var(--text-secondary);">Structured Extraction (JSON):</span>
+              <pre id="record-json-val" style="font-family: monospace; font-size: 0.8rem; background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 6px; overflow-x: auto; margin: 0; color: #a6e22e; border: 1px solid var(--panel-border); max-height: 250px;"></pre>
+            </div>
+            <div style="margin-top: 0.75rem; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem;">
+              <span style="font-weight: 600; color: var(--text-secondary);">Save Status:</span>
+              <span id="record-save-val" style="color: var(--accent-green); font-weight: bold; background: rgba(16, 185, 129, 0.1); padding: 0.25rem 0.5rem; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2);">Saved to MySQL</span>
+            </div>
+          </div>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--panel-border); margin: 1.5rem 0;">
+
         <!-- File upload portal -->
         <div>
           <label class="form-label">Drop Ingest Files (.txt or .wav audio):</label>

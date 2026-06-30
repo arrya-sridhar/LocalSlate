@@ -2,9 +2,10 @@
 import sys
 import logging
 from pathlib import Path
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from contextlib import asynccontextmanager
 
 logging.basicConfig(level=logging.INFO)
 
@@ -19,7 +20,7 @@ from backend.src.api.routers import router
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     # Startup lifecycle events
     try:
         init_db()

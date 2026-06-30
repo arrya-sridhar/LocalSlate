@@ -11,60 +11,56 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 SLM_MODEL_PATH = PROJECT_ROOT / ".models" / "slm" / "phi3-mini-4k.gguf"
 
 
-def mock_extraction(text: str) -> dict:
+def semantic_fallback_extraction(text: str) -> dict:
     text_lower = text.lower()
 
-    # 1. Determine severity/priority
+    # 1. Determine priority/severity
     priority = "LOW"
-    is_accident_emergency = any(
+    if any(
         k in text_lower
         for k in [
-            "accident",
-            "crash",
-            "collision",
-            "emergency",
-            "injured",
-            "casualty",
-            "fire",
+            "critical",
+            "danger",
+            "severe",
+            "fatality",
             "trapped",
-            "smoke",
+            "earthquake",
+            "blackout",
+            "cardiac",
         ]
-    )
-
-    if (
-        "critical" in text_lower
-        or "danger" in text_lower
-        or "severe" in text_lower
-        or "fatality" in text_lower
-        or "trapped" in text_lower
     ):
         priority = "CRITICAL"
-    elif (
-        is_accident_emergency
-        or "high" in text_lower
-        or "urgent" in text_lower
-        or "leak" in text_lower
+    elif any(
+        k in text_lower
+        for k in [
+            "high",
+            "urgent",
+            "accident",
+            "collision",
+            "spill",
+            "leak",
+            "flood",
+            "burst",
+        ]
     ):
         priority = "HIGH"
-    elif "medium" in text_lower or "warning" in text_lower:
+    elif any(k in text_lower for k in ["medium", "warning", "failure"]):
         priority = "MEDIUM"
 
     # 2. Extract locations
     locations = []
+    # Match Gachibowli locations
+    if "gachibowli flyover" in text_lower:
+        locations.append("Gachibowli Flyover")
+    elif "gachibowli crossroads" in text_lower or "gachibowli crossroad" in text_lower:
+        locations.append("Gachibowli Crossroads")
+    elif "gachibowli" in text_lower:
+        locations.append("Gachibowli")
 
-    # Check Gachibowli specific locations first
-    if "gachibowli" in text_lower:
-        if "flyover" in text_lower:
-            locations.append("Gachibowli Flyover")
-        elif "crossroads" in text_lower or "cross road" in text_lower:
-            locations.append("Gachibowli Crossroads")
-        else:
-            locations.append("Gachibowli")
-
-    # Check for "Building [A-Z]" and "chemical storage"
-    building_match = re.search(r"\b(Building\s+[A-Za-z0-9])\b", text, re.IGNORECASE)
-    if building_match:
-        b_name = building_match.group(1).title()
+    # Match Building A/B/C or Room names
+    b_match = re.search(r"\b(building\s+[a-z0-9])\b", text_lower)
+    if b_match:
+        b_name = b_match.group(1).title()
         if "chemical storage" in text_lower:
             locations.append(f"{b_name} - Chemical Storage Room")
         else:
@@ -72,99 +68,369 @@ def mock_extraction(text: str) -> dict:
     elif "chemical storage" in text_lower:
         locations.append("Chemical Storage Room")
 
-    # Match explicit isolated rooms (e.g. Room B) - ensure word boundaries so "room of" doesn't match
-    room_match = re.search(r"\broom\s+([A-Za-z0-9])\b", text, re.IGNORECASE)
-    if room_match:
-        r_name = f"Room {room_match.group(1).upper()}"
-        # Avoid duplicate room if it is already part of Building/Chemical Storage Room name
-        if not any(r_name in loc for loc in locations):
-            locations.append(r_name)
+    s_match = re.search(r"\b(server\s+room\s+[a-z0-9]|room\s+[a-z0-9])\b", text_lower)
+    if s_match:
+        locations.append(s_match.group(1).title())
 
-    # Match Sector names (e.g. Sector 7, Sector 4)
-    sector_match = re.search(r"\b(sector\s+\d+)\b", text, re.IGNORECASE)
-    if sector_match:
-        locations.append(sector_match.group(1).title())
+    sec_match = re.search(r"\b(sector\s+\d+)\b", text_lower)
+    if sec_match:
+        locations.append(sec_match.group(1).title())
 
-    # Match specific known concepts
     if "cooling array" in text_lower:
         locations.append("Cooling Array")
 
-    # Fallback to general prepositions if no structured locations found
     if not locations:
-        prep_matches = re.findall(
-            r"\b(?:at|on|in|near)\s+([A-Z][a-zA-Z0-9']+(?:\s+[A-Z][a-zA-Z0-9']+)*)",
+        matches = re.findall(
+            r"\b(?:at|on|in|near)\s+(?:the\s+)?([A-Z][a-zA-Z0-9']+(?:\s+[A-Z][a-zA-Z0-9']+)*)",
             text,
         )
-        for m in prep_matches:
-            loc = m.strip()
-            # Filter out dates, times, days, etc.
-            if not re.match(
-                r"^(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|January|February|March|April|May|June|July|August|September|October|November|December|PM|AM)\b",
-                loc,
+        for m in matches:
+            cleaned = m.strip()
+            if cleaned and not re.match(
+                r"^(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|January|February|March|April|May|June|July|August|September|October|November|December|PM|AM|CPR)\b",
+                cleaned,
                 re.IGNORECASE,
             ):
-                if loc not in locations and not any(
-                    loc in existing for existing in locations
-                ):
-                    locations.append(loc)
+                locations.append(cleaned)
 
-    # Default fallback
     if not locations:
-        locations = ["Sector 7"] if "sector 7" in text_lower else ["Unknown Area"]
-    else:
-        # Filter duplicates while maintaining order
-        seen = set()
-        unique_locations = []
-        for x in locations:
-            if x not in seen:
-                seen.add(x)
-                unique_locations.append(x)
-        locations = unique_locations
+        if "cafeteria" in text_lower:
+            locations.append("Cafeteria")
+        elif "parking" in text_lower or "basement" in text_lower:
+            locations.append("Basement Parking")
+        elif "entrance" in text_lower or "gate" in text_lower:
+            locations.append("Entrance Gate")
+        elif "database" in text_lower or "server" in text_lower:
+            locations.append("Data Center")
+        else:
+            locations.append("Unknown Area")
 
-    # 3. Extract personnel
-    personnel = []
+    locations = list(dict.fromkeys(locations))
 
     # Match counts of workers / trapped people (e.g. Two workers, 2 workers)
     trapped_count_match = re.search(
         r"\b((?:\d+|[Tt]wo|[Tt]hree|[Ff]our|[Ff]ive|[Ss]everal))\s+(workers|people|persons|staff|operators|individuals|occupants)\b",
         text,
+        re.IGNORECASE,
     )
-    if trapped_count_match:
-        personnel.append(
-            f"{trapped_count_match.group(1).lower()} {trapped_count_match.group(2).lower()}"
+
+    # 3. Classify incident type, systems and tasks
+    incident_type = "Other"
+    affected_systems = []
+    tasks = []
+
+    # Fire Hazard
+    if any(k in text_lower for k in ["fire", "smoke", "blaze"]):
+        incident_type = "Fire Hazard"
+        affected_systems = ["Safety Systems"]
+        tasks.append(
+            {
+                "task_desc": f"Dispatch fire department to {locations[0]} to control the fire hazard",
+                "urgency": "CRITICAL",
+            }
         )
-    else:
-        # Check if generic trapped workers/people mentioned
-        trapped_generic = re.search(
-            r"\b(workers|trapped\s+people|trapped\s+workers)\b", text_lower
+        if "trapped" in text_lower:
+            workers_count = "trapped"
+            if trapped_count_match:
+                workers_count = f"{trapped_count_match.group(1).lower()} trapped"
+            tasks.append(
+                {
+                    "task_desc": f"Rescue {workers_count} workers",
+                    "urgency": "CRITICAL",
+                }
+            )
+        tasks.append(
+            {
+                "task_desc": f"Dispatch emergency medical services / ambulance to {locations[0]}",
+                "urgency": "CRITICAL",
+            }
         )
-        if trapped_generic:
-            personnel.append(trapped_generic.group(1))
+        tasks.append(
+            {
+                "task_desc": f"Evacuate nearby area from {locations[0]}",
+                "urgency": "CRITICAL",
+            }
+        )
 
-    # Case-sensitive name extraction around "injured"
-    injured_matches = re.search(
-        r"([A-Z][a-z]+(?:\s*(?:,|and)\s*[A-Z][a-z]+)*)\s+(?:is|are|were)\s+injured",
-        text,
-    )
-    if injured_matches:
-        names_str = injured_matches.group(1)
-        for name in re.split(r",|\band\b", names_str):
-            name_cleaned = name.strip()
-            if name_cleaned:
-                personnel.append(name_cleaned)
+    # Medical Emergency (specific)
+    elif any(
+        k in text_lower
+        for k in [
+            "cardiac",
+            "heart attack",
+            "unconscious",
+            "stroke",
+            "cpr",
+        ]
+    ):
+        incident_type = "Medical Emergency"
+        affected_systems = ["Human Health"]
+        if "cpr" in text_lower or "cardiac" in text_lower:
+            tasks.append(
+                {
+                    "task_desc": "Administer CPR and first aid",
+                    "urgency": "CRITICAL",
+                }
+            )
+        tasks.append(
+            {
+                "task_desc": f"Dispatch emergency medical services / ambulance to {locations[0]}",
+                "urgency": "CRITICAL",
+            }
+        )
 
-    injured_matches_post = re.search(
-        r"injured\s+(?:people|personnel|persons|cyclists|pedestrians)?\s*:?\s*([A-Z][a-z]+(?:\s*(?:,|and)\s*[A-Z][a-z]+)*)",
-        text,
-    )
-    if injured_matches_post:
-        names_str = injured_matches_post.group(1)
-        for name in re.split(r",|\band\b", names_str):
-            name_cleaned = name.strip()
-            if name_cleaned:
-                personnel.append(name_cleaned)
+    # Road Accident
+    elif any(
+        k in text_lower
+        for k in [
+            "car crash",
+            "road accident",
+            "collision",
+            "pileup",
+            "traffic block",
+            "vehicle",
+            "accident",
+            "crash",
+        ]
+    ):
+        incident_type = "Road Accident"
+        affected_systems = ["Road Network"]
+        tasks.append(
+            {
+                "task_desc": f"Clear blocked traffic at {locations[0]} and divert vehicles",
+                "urgency": "HIGH",
+            }
+        )
+        tasks.append(
+            {
+                "task_desc": f"Deploy traffic police to {locations[0]} for crowd control and investigation",
+                "urgency": "HIGH",
+            }
+        )
+        if any(
+            x in text_lower for x in ["injured", "injuries", "ambulance", "medical"]
+        ):
+            tasks.append(
+                {
+                    "task_desc": f"Dispatch emergency medical services / ambulance to {locations[0]}",
+                    "urgency": "CRITICAL",
+                }
+            )
 
-    # Case-insensitive checks for known names/agents
+    # Gas Leak
+    elif any(
+        k in text_lower
+        for k in ["gas leak", "natural gas", "methane", "gas odor", "propane"]
+    ):
+        incident_type = "Gas Leak"
+        affected_systems = ["HVAC", "Gas Line"]
+        tasks.append({"task_desc": "Shut off gas supply valves", "urgency": "CRITICAL"})
+        tasks.append(
+            {
+                "task_desc": f"Evacuate nearby area from {locations[0]}",
+                "urgency": "CRITICAL",
+            }
+        )
+
+    # Chemical Spill
+    elif any(
+        k in text_lower
+        for k in [
+            "chemical spill",
+            "toxic leak",
+            "acid spill",
+            "hazmat",
+            "hazardous material",
+            "chemical storage",
+            "chemical leak",
+        ]
+    ):
+        incident_type = "Chemical Spill"
+        affected_systems = ["Ventilation System"]
+        tasks.append(
+            {
+                "task_desc": "Contain chemical spill and neutralize toxic agent",
+                "urgency": "CRITICAL",
+            }
+        )
+        tasks.append(
+            {
+                "task_desc": f"Evacuate nearby area from {locations[0]}",
+                "urgency": "CRITICAL",
+            }
+        )
+
+    # Flood
+    elif any(
+        k in text_lower
+        for k in ["flood", "flooding", "water rising", "submerged", "heavy rain"]
+    ):
+        incident_type = "Flood"
+        affected_systems = ["Drainage System"]
+        tasks.append(
+            {
+                "task_desc": "Deploy water pumps to clear flooding",
+                "urgency": "HIGH",
+            }
+        )
+        tasks.append(
+            {
+                "task_desc": f"Evacuate nearby area from {locations[0]}",
+                "urgency": "CRITICAL",
+            }
+        )
+
+    # Earthquake
+    elif any(
+        k in text_lower
+        for k in [
+            "earthquake",
+            "seismic",
+            "ground shaking",
+            "tremor",
+            "structural collapse",
+        ]
+    ):
+        incident_type = "Earthquake"
+        affected_systems = ["Structural Integrity"]
+        tasks.append(
+            {
+                "task_desc": f"Rescue trapped people from {locations[0]}",
+                "urgency": "CRITICAL",
+            }
+        )
+        tasks.append(
+            {
+                "task_desc": "Check structural integrity of surrounding buildings",
+                "urgency": "HIGH",
+            }
+        )
+
+    # Cyber Incident
+    elif any(
+        k in text_lower
+        for k in [
+            "cyber",
+            "ransomware",
+            "hacked",
+            "data breach",
+            "network breach",
+            "database hack",
+            "malware",
+        ]
+    ):
+        incident_type = "Cyber Incident"
+        affected_systems = ["Main Database", "Network Domain"]
+        tasks.append(
+            {
+                "task_desc": "Isolate affected database and servers",
+                "urgency": "CRITICAL",
+            }
+        )
+        tasks.append(
+            {
+                "task_desc": "Initiate cybersecurity response plan",
+                "urgency": "CRITICAL",
+            }
+        )
+
+    # Suspicious Package
+    elif any(
+        k in text_lower
+        for k in [
+            "suspicious package",
+            "unattended bag",
+            "bomb threat",
+            "explosive",
+            "suspicious parcel",
+        ]
+    ):
+        incident_type = "Suspicious Package"
+        affected_systems = ["Physical Security"]
+        tasks.append(
+            {
+                "task_desc": f"Secure area around {locations[0]} and establish perimeter",
+                "urgency": "CRITICAL",
+            }
+        )
+        tasks.append(
+            {
+                "task_desc": f"Dispatch bomb squad to {locations[0]}",
+                "urgency": "CRITICAL",
+            }
+        )
+
+    # Power Failure
+    elif any(
+        k in text_lower
+        for k in [
+            "power failure",
+            "power outage",
+            "grid outage",
+            "blackout",
+            "electricity down",
+            "generator failure",
+        ]
+    ):
+        incident_type = "Power Failure"
+        affected_systems = ["Electrical Grid"]
+        tasks.append(
+            {
+                "task_desc": f"Investigate grid outage and generator failure at {locations[0]}",
+                "urgency": "HIGH",
+            }
+        )
+        tasks.append(
+            {
+                "task_desc": "Switch to auxiliary power backup",
+                "urgency": "HIGH",
+            }
+        )
+
+    # Water Leakage
+    elif any(k in text_lower for k in ["water leak", "pipe burst", "burst pipe"]):
+        incident_type = "Water Leakage"
+        if "electrical" in text_lower:
+            affected_systems.append("Electrical Equipment")
+        if "cooling" in text_lower:
+            affected_systems.append("Cooling System")
+        if not affected_systems:
+            affected_systems = ["Water Line"]
+        tasks.append({"task_desc": "Shut off water supply", "urgency": "HIGH"})
+        if "electrical" in text_lower:
+            tasks.append(
+                {"task_desc": "Isolate electrical equipment", "urgency": "HIGH"}
+            )
+        if any(k in text_lower for k in ["pipe burst", "burst pipe"]):
+            tasks.append({"task_desc": "Repair burst pipe", "urgency": "HIGH"})
+        if "cooling" in text_lower:
+            tasks.append({"task_desc": "Restore cooling system", "urgency": "HIGH"})
+
+    # Medical Emergency General Fallback
+    elif any(
+        k in text_lower
+        for k in [
+            "medical",
+            "patient",
+            "injury",
+            "injured",
+            "ambulance",
+        ]
+    ):
+        incident_type = "Medical Emergency"
+        affected_systems = ["Human Health"]
+        tasks.append(
+            {
+                "task_desc": f"Dispatch emergency medical services / ambulance to {locations[0]}",
+                "urgency": "CRITICAL",
+            }
+        )
+
+    if not tasks:
+        tasks.append({"task_desc": "Perform routine safety checks", "urgency": "LOW"})
+
+    # 4. Extract personnel
+    personnel = []
     for name in [
         "ramesh",
         "suresh",
@@ -176,132 +442,31 @@ def mock_extraction(text: str) -> dict:
         if name in text_lower:
             personnel.append(name.title())
 
-    # Existing prefix matching for agents/operatives
-    pers_matches = re.findall(
-        r"\b(agent\s+[a-zA-Z]|operative\s+[a-zA-Z])\b", text_lower
-    )
-    for m in pers_matches:
-        personnel.append(m.title())
+    agent_matches = re.findall(r"\b(agent\s+[a-z]+|operative\s+[a-z]+)\b", text_lower)
+    for am in agent_matches:
+        personnel.append(am.title())
+
+    if trapped_count_match:
+        personnel.append(
+            f"{trapped_count_match.group(1).lower()} {trapped_count_match.group(2).lower()}"
+        )
+    else:
+        trapped_generic = re.search(
+            r"\b(workers|trapped\s+people|trapped\s+workers)\b", text_lower
+        )
+        if trapped_generic:
+            personnel.append(trapped_generic.group(1))
 
     if not personnel:
         personnel = ["Duty Staff"]
-    else:
-        # Filter duplicates while maintaining order
-        seen = set()
-        unique_personnel = []
-        for x in personnel:
-            if x not in seen:
-                seen.add(x)
-                unique_personnel.append(x)
-        personnel = unique_personnel
+    personnel = list(dict.fromkeys(personnel))
 
-    # 4. Extract actionable tasks
-    tasks = []
+    summary = text[:120] + "..." if len(text) > 120 else text
 
-    # Blocked traffic
-    if "traffic" in text_lower and any(
-        k in text_lower for k in ["block", "congest", "jam", "stop", "shut", "close"]
-    ):
-        loc_suffix = f" at {locations[0]}" if locations else ""
-        tasks.append(
-            {
-                "task_desc": f"Clear blocked traffic{loc_suffix} and divert vehicles",
-                "urgency": "HIGH",
-            }
-        )
-
-    # Fire department dispatch
-    if any(k in text_lower for k in ["fire", "blaze"]):
-        loc_suffix = f" to {locations[0]}" if locations else ""
-        tasks.append(
-            {
-                "task_desc": f"Dispatch fire department{loc_suffix} to control the fire hazard",
-                "urgency": "CRITICAL",
-            }
-        )
-
-    # Rescue trapped workers
-    if "trapped" in text_lower:
-        workers_count = "trapped"
-        if trapped_count_match:
-            workers_count = f"{trapped_count_match.group(1).lower()} trapped"
-        tasks.append(
-            {
-                "task_desc": f"Rescue {workers_count} workers",
-                "urgency": "CRITICAL",
-            }
-        )
-
-    # Emergency medical services
-    if any(
-        k in text_lower
-        for k in [
-            "ambulance",
-            "medical",
-            "hospital",
-            "paramedics",
-            "injured",
-            "trapped",
-            "doctor",
-        ]
-    ):
-        loc_suffix = f" to {locations[0]}" if locations else ""
-        tasks.append(
-            {
-                "task_desc": f"Dispatch emergency medical services / ambulance{loc_suffix}",
-                "urgency": "CRITICAL",
-            }
-        )
-
-    # Evacuation
-    if any(
-        k in text_lower for k in ["smoke", "leak", "fire", "evacuate", "evacuation"]
-    ):
-        loc_suffix = f" from {locations[0]}" if locations else ""
-        tasks.append(
-            {
-                "task_desc": f"Evacuate nearby area{loc_suffix}",
-                "urgency": "CRITICAL",
-            }
-        )
-
-    # Deploy traffic police / police
-    if any(k in text_lower for k in ["police", "cop", "traffic police"]):
-        loc_suffix = f" to {locations[0]}" if locations else ""
-        tasks.append(
-            {
-                "task_desc": f"Deploy traffic police{loc_suffix} for crowd control and investigation",
-                "urgency": "HIGH",
-            }
-        )
-
-    # Default tasks if nothing else matched
-    if not tasks:
-        if "cooling" in text_lower:
-            tasks.append(
-                {"task_desc": "Deploy secondary cooling array", "urgency": "CRITICAL"}
-            )
-        if "leak" in text_lower or "water" in text_lower:
-            tasks.append(
-                {
-                    "task_desc": "Evacuate Server Room B and isolate leak",
-                    "urgency": "CRITICAL",
-                }
-            )
-
-    if not tasks:
-        tasks.append({"task_desc": "Perform routine safety checks", "urgency": "LOW"})
-
-    # Summary
-    summary = f"Field report detailing operations. Priority: {priority}."
-    if len(text) > 10:
-        summary = text[:120] + "..." if len(text) > 120 else text
-
-    report = {
-        "incident_id": str(uuid.uuid4()),
-        "iso_timestamp": datetime.datetime.now(datetime.timezone.utc)
-        .isoformat()
-        .replace("+00:00", "Z"),
+    return {
+        "incident_type": incident_type,
+        "location": locations[0] if locations else "Unknown Area",
+        "affected_systems": affected_systems,
         "computed_priority_level": priority,
         "system_summary": summary,
         "identified_entities": {
@@ -309,12 +474,24 @@ def mock_extraction(text: str) -> dict:
             "personnel": personnel,
         },
         "actionable_tasks": tasks,
-        "incident_type": None,
-        "location": None,
-        "affected_systems": None,
     }
 
-    report = apply_rule_fallback_if_needed(report, text)
+
+def mock_extraction(text: str) -> dict:
+    parsed = semantic_fallback_extraction(text)
+    report = {
+        "incident_id": str(uuid.uuid4()),
+        "iso_timestamp": datetime.datetime.now(datetime.UTC)
+        .isoformat()
+        .replace("+00:00", "Z"),
+        "computed_priority_level": parsed["computed_priority_level"],
+        "system_summary": parsed["system_summary"],
+        "identified_entities": parsed["identified_entities"],
+        "actionable_tasks": parsed["actionable_tasks"],
+        "incident_type": parsed["incident_type"],
+        "location": parsed["location"],
+        "affected_systems": parsed["affected_systems"],
+    }
     return report
 
 
@@ -336,58 +513,21 @@ def check_ram_usage() -> bool:
 
 
 def apply_rule_fallback_if_needed(report_data: dict, text: str) -> dict:
-    text_lower = text.lower()
-    has_water_leak = (
-        "water leak" in text_lower
-        or "leak" in text_lower
-        or "water leakage" in text_lower
-    )
-    has_pipe_burst = (
-        "pipe burst" in text_lower
-        or "burst pipe" in text_lower
-        or "burst" in text_lower
-    )
-    has_server_room = "server room" in text_lower
-    has_electrical = "electrical" in text_lower
-    has_cooling = "cooling" in text_lower
-
-    if (has_water_leak or has_pipe_burst) and (
-        has_server_room or has_electrical or has_cooling
-    ):
-        report_data["incident_type"] = "Water Leakage"
-
-        loc = "Server Room"
-        room_match = re.search(
-            r"\bserver\s+room\s+([A-Za-z0-9])\b", text, re.IGNORECASE
-        )
-        if room_match:
-            loc = f"Server Room {room_match.group(1).upper()}"
-        elif "room b" in text_lower:
-            loc = "Room B"
-        report_data["location"] = loc
-
-        affected_systems = []
-        if has_electrical:
-            affected_systems.append("Electrical Equipment")
-        if has_cooling:
-            affected_systems.append("Cooling System")
-        report_data["affected_systems"] = affected_systems
-
-        report_data["computed_priority_level"] = "HIGH"
-
-        tasks = []
-        tasks.append({"task_desc": "Shut off water supply", "urgency": "HIGH"})
-        if has_electrical:
-            tasks.append(
-                {"task_desc": "Isolate electrical equipment", "urgency": "HIGH"}
-            )
-        if has_pipe_burst:
-            tasks.append({"task_desc": "Repair burst pipe", "urgency": "HIGH"})
-        if has_cooling:
-            tasks.append({"task_desc": "Restore cooling system", "urgency": "HIGH"})
-
-        report_data["actionable_tasks"] = tasks
-
+    parsed = semantic_fallback_extraction(text)
+    if not report_data.get("incident_type") or report_data["incident_type"] in [
+        "Other",
+        "None",
+        None,
+    ]:
+        report_data["incident_type"] = parsed["incident_type"]
+    if not report_data.get("location") or report_data["location"] in [
+        "Unknown Area",
+        "None",
+        None,
+    ]:
+        report_data["location"] = parsed["location"]
+    if not report_data.get("affected_systems"):
+        report_data["affected_systems"] = parsed["affected_systems"]
     return report_data
 
 

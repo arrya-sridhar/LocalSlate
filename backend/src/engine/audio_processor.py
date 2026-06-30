@@ -52,8 +52,6 @@ class WhisperProcessor:
                 logging.error(f"Failed to load Whisper model: {e}")
 
     def transcribe(self, audio_path: Path) -> str:
-        validate_audio_file(audio_path)
-
         # Fallback to mock mode if model was not loaded
         if self.model is None:
             logging.warning(
@@ -75,6 +73,8 @@ class WhisperProcessor:
                     "Water leak detected in Server Room B. Main electrical node is at risk. "
                     "Operative S has requested immediate evacuation. Priority is critical."
                 )
+            elif "recorded" in file_name or "mic" in file_name:
+                transcript = "A water pipe burst in Server Room B. Water is reaching electrical equipment and cooling system is down."
             else:
                 transcript = (
                     "Routine check in Sector 4 completed by Agent M. "
@@ -92,6 +92,7 @@ class WhisperProcessor:
             return transcript
 
         # Real transcription
+        validate_audio_file(audio_path)
         logging.info(f"Starting Whisper transcription for {audio_path.name}...")
         segments, info = self.model.transcribe(str(audio_path), beam_size=5)
         text_segments = []

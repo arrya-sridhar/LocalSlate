@@ -1,5 +1,6 @@
-import pytest
 from pathlib import Path
+
+import pytest
 
 from backend.src.database.db import DatabaseEngine
 from backend.src.engine.audio_processor import validate_audio_file

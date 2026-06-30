@@ -315,6 +315,135 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Voice Recorder variables
+  const startRecordBtn = document.getElementById('start-record-btn');
+  const stopRecordBtn = document.getElementById('stop-record-btn');
+  const recordStatus = document.getElementById('record-status');
+  const recordingResultPanel = document.getElementById('recording-result-panel');
+  const recordTranscriptVal = document.getElementById('record-transcript-val');
+  const recordJsonVal = document.getElementById('record-json-val');
+  const recordSaveVal = document.getElementById('record-save-val');
+
+  let mediaRecorder = null;
+  let audioChunks = [];
+
+  startRecordBtn.addEventListener('click', async () => {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Your browser does not support audio recording (MediaDevices API missing or not in secure context).');
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunks = [];
+      
+      let mimeType = '';
+      if (MediaRecorder.isTypeSupported('audio/webm')) {
+        mimeType = 'audio/webm';
+      } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+        mimeType = 'audio/ogg';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        mimeType = 'audio/mp4';
+      } else if (MediaRecorder.isTypeSupported('audio/wav')) {
+        mimeType = 'audio/wav';
+      }
+
+      const options = mimeType ? { mimeType } : {};
+      mediaRecorder = new MediaRecorder(stream, options);
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunks.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(track => track.stop());
+
+        const blobType = mimeType || 'audio/wav';
+        const audioBlob = new Blob(audioChunks, { type: blobType });
+        await uploadRecordedAudio(audioBlob);
+      };
+
+      mediaRecorder.start();
+      
+      startRecordBtn.disabled = true;
+      startRecordBtn.style.cursor = 'not-allowed';
+      startRecordBtn.style.backgroundColor = 'var(--text-muted)';
+      
+      stopRecordBtn.disabled = false;
+      stopRecordBtn.style.cursor = 'pointer';
+      stopRecordBtn.style.backgroundColor = 'var(--accent-red)';
+      
+      recordStatus.style.display = 'inline-block';
+      showToast('Microphone recording started...', 'info');
+
+    } catch (err) {
+      console.error('Error starting audio recording:', err);
+      showToast(`Could not start recording: ${err.message}`, 'error');
+    }
+  });
+
+  stopRecordBtn.addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+    
+    startRecordBtn.disabled = false;
+    startRecordBtn.style.cursor = 'pointer';
+    startRecordBtn.style.backgroundColor = 'var(--accent-red)';
+    
+    stopRecordBtn.disabled = true;
+    stopRecordBtn.style.cursor = 'not-allowed';
+    stopRecordBtn.style.backgroundColor = 'var(--text-muted)';
+    
+    recordStatus.style.display = 'none';
+    showToast('Recording stopped. Processing audio...', 'info');
+  });
+
+  async function uploadRecordedAudio(blob) {
+    const formData = new FormData();
+    formData.append('file', blob, 'recorded_mic.wav');
+
+    try {
+      const res = await fetch('/process-audio', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to process audio recording.');
+      }
+
+      const result = await res.json();
+      
+      recordingResultPanel.style.display = 'block';
+      recordTranscriptVal.textContent = result.transcript || '';
+      recordJsonVal.textContent = JSON.stringify(result.report, null, 2);
+      
+      if (result.saved) {
+        recordSaveVal.textContent = 'Saved to Database';
+        recordSaveVal.style.color = 'var(--accent-green)';
+        recordSaveVal.style.background = 'rgba(16, 185, 129, 0.1)';
+        recordSaveVal.style.border = '1px solid rgba(16, 185, 129, 0.2)';
+        showToast('Voice recording transcribed and saved to database.', 'success');
+      } else {
+        recordSaveVal.textContent = 'Failed to save to database';
+        recordSaveVal.style.color = 'var(--accent-red)';
+        recordSaveVal.style.background = 'rgba(239, 68, 68, 0.1)';
+        recordSaveVal.style.border = '1px solid rgba(239, 68, 68, 0.2)';
+        showToast('Audio transcribed but failed to save to database.', 'warning');
+      }
+
+      fetchStatus();
+      fetchIncidents();
+
+    } catch (err) {
+      console.error('Error uploading audio:', err);
+      showToast(`Audio processing error: ${err.message}`, 'error');
+    }
+  }
+
   // Periodic Polling setups
   fetchStatus();
   fetchIncidents();

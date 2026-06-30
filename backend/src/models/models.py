@@ -1,6 +1,6 @@
 import datetime
 import uuid
-from typing import List, Literal, Optional
+from typing import Literal
 from pydantic import BaseModel, Field
 
 
@@ -12,10 +12,10 @@ class Task(BaseModel):
 
 
 class Entities(BaseModel):
-    locations: List[str] = Field(
+    locations: list[str] = Field(
         default_factory=list, description="List of identified locations"
     )
-    personnel: List[str] = Field(
+    personnel: list[str] = Field(
         default_factory=list, description="List of identified personnel"
     )
 
@@ -24,9 +24,7 @@ class IncidentReport(BaseModel):
     incident_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     iso_timestamp: str = Field(
         default_factory=lambda: (
-            datetime.datetime.now(datetime.timezone.utc)
-            .isoformat()
-            .replace("+00:00", "Z")
+            datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z")
         )
     )
     computed_priority_level: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
@@ -34,11 +32,9 @@ class IncidentReport(BaseModel):
         ..., description="Brief 2-sentence summary of the incident"
     )
     identified_entities: Entities
-    actionable_tasks: List[Task] = Field(default_factory=list)
-    incident_type: Optional[str] = Field(
-        default=None, description="Type of the incident"
-    )
-    location: Optional[str] = Field(default=None, description="Primary location")
-    affected_systems: Optional[List[str]] = Field(
+    actionable_tasks: list[Task] = Field(default_factory=list)
+    incident_type: str | None = Field(default=None, description="Type of the incident")
+    location: str | None = Field(default=None, description="Primary location")
+    affected_systems: list[str] | None = Field(
         default=None, description="List of affected systems"
     )

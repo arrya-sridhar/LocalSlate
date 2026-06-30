@@ -103,7 +103,7 @@ def run_with_timeout(func, args, timeout):
 
 def process_file(file_path: Path) -> None:
     try:
-        hasher = hashlib.md5()
+        hasher = hashlib.md5(usedforsecurity=False)
         with open(file_path, "rb") as f:
             buf = f.read(65536)
             while len(buf) > 0:
@@ -157,7 +157,7 @@ def process_file(file_path: Path) -> None:
             queue_status["current_status"] = "Reading Text..."
             logging.info(f"Processing text incident {file_hash}...")
 
-            with open(dest_path, "r", encoding="utf-8") as f:
+            with open(dest_path, encoding="utf-8") as f:
                 text = f.read(4010)
 
             if len(text) > 4000:

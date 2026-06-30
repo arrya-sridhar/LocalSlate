@@ -1,7 +1,7 @@
 import os
 import logging
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any
 import pymysql
 from dotenv import load_dotenv
 
@@ -13,6 +13,8 @@ from sqlalchemy import (
     Integer,
     ForeignKey,
     func,
+    inspect,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 import datetime
@@ -37,9 +39,7 @@ class Incident(Base):
     iso_timestamp = Column(String(255), nullable=False)
     computed_priority_level = Column(String(50), nullable=False)
     system_summary = Column(String(1000), nullable=False)
-    created_at = Column(
-        DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc)
-    )
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC))
     incident_type = Column(String(255), nullable=True)
     location = Column(String(255), nullable=True)
     affected_systems = Column(String(1000), nullable=True)
@@ -99,10 +99,10 @@ class ActionableTask(Base):
 
 
 class DatabaseService:
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         # db_path parameter is kept for backward compatibility but ignored
-        self.engine: Optional[Any] = None
-        self.SessionLocal: Optional[Any] = None
+        self.engine: Any | None = None
+        self.SessionLocal: Any | None = None
 
         is_render = "RENDER" in os.environ or "RENDER_SERVICE_ID" in os.environ
         host_env = os.getenv("DB_HOST")
@@ -158,7 +158,13 @@ class DatabaseService:
                 port=int(self.port),
             )
             cursor = conn.cursor()
-            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.db_name};")
+            import re
+
+            if not re.match(r"^[a-zA-Z0-9_-]+$", self.db_name):
+                raise ValueError("Invalid database name")
+            cursor.execute(
+                f"CREATE DATABASE IF NOT EXISTS {self.db_name};"
+            )  # nosemgrep
             conn.commit()
             cursor.close()
             conn.close()
@@ -166,6 +172,48 @@ class DatabaseService:
         except Exception as e:
             logging.error(f"Failed to create database '{self.db_name}': {e}")
             raise
+
+    def run_schema_migrations(self) -> None:
+        if not self.engine:
+            return
+        try:
+            inspector = inspect(self.engine)
+            table_names = inspector.get_table_names()
+            if "incidents" not in table_names:
+                return
+
+            columns = [col["name"] for col in inspector.get_columns("incidents")]
+            with self.engine.begin() as conn:
+                if "incident_type" not in columns:
+                    logging.info(
+                        "Migration: Adding 'incident_type' column to incidents table."
+                    )
+                    conn.execute(
+                        text(
+                            "ALTER TABLE incidents ADD COLUMN incident_type VARCHAR(100) NULL;"
+                        )
+                    )
+                if "location" not in columns:
+                    logging.info(
+                        "Migration: Adding 'location' column to incidents table."
+                    )
+                    conn.execute(
+                        text(
+                            "ALTER TABLE incidents ADD COLUMN location VARCHAR(255) NULL;"
+                        )
+                    )
+                if "affected_systems" not in columns:
+                    logging.info(
+                        "Migration: Adding 'affected_systems' column to incidents table."
+                    )
+                    conn.execute(
+                        text(
+                            "ALTER TABLE incidents ADD COLUMN affected_systems TEXT NULL;"
+                        )
+                    )
+            logging.info("Schema migrations checked and applied successfully.")
+        except Exception as e:
+            logging.error(f"Failed to run database migrations: {e}")
 
     def initialize(self) -> None:
         if not self.host or self.engine is None:
@@ -176,6 +224,7 @@ class DatabaseService:
         try:
             self.create_database_if_not_exists()
             Base.metadata.create_all(bind=self.engine)
+            self.run_schema_migrations()
             logging.info("MySQL database initialized successfully with SQLAlchemy.")
         except Exception as e:
             logging.error(f"Failed to initialize MySQL database: {e}")

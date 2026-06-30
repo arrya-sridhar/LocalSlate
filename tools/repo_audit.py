@@ -1,9 +1,10 @@
-import sys
-import os
 import json
-import yaml
+import os
 import subprocess
+import sys
 from pathlib import Path
+
+import yaml
 
 
 def run_check(name, func):
@@ -14,10 +15,9 @@ def run_check(name, func):
         if success:
             print(" [PASS]")
             return True
-        else:
-            print(" [FAIL]")
-            print(f"  Error: {msg}")
-            return False
+        print(" [FAIL]")
+        print(f"  Error: {msg}")
+        return False
     except Exception as e:
         print(" [ERROR]")
         print(f"  Exception occurred: {e}")
@@ -44,7 +44,9 @@ def check_trailing_whitespace():
 # Check 2: Verify Python AST (Compile check)
 def check_ast_compilation():
     res = subprocess.run(
-        [sys.executable, "-m", "compileall", "-q", "backend/src"], capture_output=True
+        [sys.executable, "-m", "compileall", "-q", "backend/src"],
+        capture_output=True,
+        check=False,
     )
     if res.returncode != 0:
         return False, res.stderr.decode("utf-8")
@@ -60,7 +62,7 @@ def check_yaml_files():
             if file.endswith((".yml", ".yaml")):
                 path = Path(root) / file
                 try:
-                    with open(path, "r", encoding="utf-8") as f:
+                    with open(path, encoding="utf-8") as f:
                         yaml.safe_load(f)
                 except Exception as e:
                     return False, f"Invalid YAML in {path}: {e}"
@@ -76,7 +78,7 @@ def check_json_files():
             if file.endswith(".json"):
                 path = Path(root) / file
                 try:
-                    with open(path, "r", encoding="utf-8") as f:
+                    with open(path, encoding="utf-8") as f:
                         json.load(f)
                 except Exception as e:
                     return False, f"Invalid JSON in {path}: {e}"

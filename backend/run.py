@@ -1,6 +1,7 @@
-import uvicorn
 import sys
 from pathlib import Path
+
+import uvicorn
 
 # Resolve and add project root to python path to avoid import errors
 PROJECT_ROOT = Path(__file__).resolve().parent.parent

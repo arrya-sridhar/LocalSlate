@@ -182,7 +182,63 @@ To enable database persistence on Render, configure the following Environment Va
 
 ---
 
+## 🔒 Code Quality, Security & Compliance Checks
+
+To maintain the high standards of security, code quality, and compliance in LocalSlate, several checkers are configured. You can run them locally:
+
+### 1. Existing Formatters and Checkers
+* **Ruff Linter**:
+  ```bash
+  .venv\Scripts\python -m ruff check .
+  ```
+* **Ruff Formatter check**:
+  ```bash
+  .venv\Scripts\python -m ruff format --check .
+  ```
+* **Mypy Static Type Checking**:
+  ```bash
+  .venv\Scripts\python -m mypy .
+  ```
+* **Pytest Unit/Integration Suite**:
+  ```bash
+  .venv\Scripts\pytest
+  ```
+
+### 2. Security, Secret Scanning, & Dependency Audits
+* **Bandit Security Scan**:
+  ```bash
+  .venv\Scripts\python -m bandit -c pyproject.toml -r backend tests tools
+  ```
+* **Pip-audit Dependency Audit**:
+  ```bash
+  # Ignore CVE-2025-69872 as diskcache 5.6.3 has no fix version released yet
+  .venv\Scripts\python -m pip_audit --ignore-vuln CVE-2025-69872
+  ```
+* **Gitleaks Secret Scan**:
+  ```bash
+  gitleaks detect --source . --no-git --config .gitleaks.toml
+  ```
+* **Semgrep SAST Scan**:
+  ```bash
+  .venv\Scripts\semgrep scan --config auto
+  ```
+
+### 3. Additional Code Quality linters
+* **Pylint Code Analysis**:
+  ```bash
+  .venv\Scripts\python -m pylint backend tests tools
+  ```
+* **Flake8 Style Checking**:
+  ```bash
+  .venv\Scripts\python -m flake8 backend tests tools
+  ```
+* **Vulture Dead Code Detection**:
+  ```bash
+  .venv\Scripts\python -m vulture backend tests tools
+  ```
+
+---
+
 ## 🛠️ Troubleshooting
 * **ModuleNotFoundError on pytest**: Run tests via `pytest` (configured with `pytest.ini`).
 * **MySQL Connection Failures**: Check that the MySQL server is running, the port is open, and `.env` credentials are correct.
-

@@ -1,13 +1,15 @@
 import shutil
 import logging
+import uuid
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
-from backend.src.api.dependencies import get_db, get_slm
+from backend.src.api.dependencies import get_db, get_slm, get_audio
 from backend.src.database.db import DatabaseService
 from backend.src.engine.slm_processor import SLMService
+from backend.src.engine.audio_processor import AudioService
 from backend.src.app.queue_manager import queue_status, get_queue_length, CACHE_DIR
 
 router = APIRouter()
@@ -198,6 +200,84 @@ def process_text(
         return JSONResponse(
             status_code=503,
             content={"error": f"Failed to save incident report: {str(e)}"},
+        )
+
+
+@router.post("/process-audio")
+async def process_audio(
+    file: UploadFile = File(...),
+    db: DatabaseService = Depends(get_db),
+    slm: SLMService = Depends(get_slm),
+    audio: AudioService = Depends(get_audio),
+):
+    try:
+        if not db.host:
+            raise ConnectionError("Database host is not configured.")
+        conn = db.get_connection()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Database connection check failed before processing audio: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"error": f"Database connection failed: {str(e)}"},
+        )
+
+    # Save audio stream to a temporary file
+    temp_dir = PROJECT_ROOT / "data" / "temp"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    suffix = Path(file.filename).suffix.lower() if file.filename else ".wav"
+    if not suffix:
+        suffix = ".wav"
+
+    temp_path = temp_dir / f"recorded_{uuid.uuid4()}{suffix}"
+
+    try:
+        with temp_path.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        logging.error(f"Failed to save temp audio file: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to save temporary audio file: {str(e)}"},
+        )
+
+    try:
+        transcript = audio.transcribe(temp_path)
+    except Exception as e:
+        logging.error(f"Failed to transcribe audio: {e}")
+        if temp_path.exists():
+            try:
+                temp_path.unlink()
+            except Exception:
+                pass
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to transcribe audio: {str(e)}"},
+        )
+
+    try:
+        report = slm.extract_incident(transcript)
+    except Exception as e:
+        logging.error(f"Failed to extract incident from audio transcript: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to process audio report extraction: {str(e)}"},
+        )
+
+    try:
+        db.insert_incident(report)
+        return {"transcript": transcript, "report": report, "saved": True}
+    except Exception as e:
+        logging.error(f"Failed to save audio incident to database: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "transcript": transcript,
+                "report": report,
+                "saved": False,
+                "error": f"Failed to save incident: {str(e)}",
+            },
         )
 
 
