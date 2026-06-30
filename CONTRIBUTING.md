@@ -1,25 +1,61 @@
-# Contributing to LocalSlate 🤝
+# Contributing to LocalSlate
 
-We operate under a structured, offline-first collaborative framework. Please follow these guidelines:
+Thank you for contributing! Please review the guidelines below to ensure a smooth workflow.
 
-## 🌿 Branching Strategy
-* Never commit directly to `main`.
-* Create a developer branch (e.g., `sreeshanth` or `dev-1`) for all feature development.
-* Merge changes into `main` using GitLab Merge Requests.
+---
 
-## ⚙️ Coding Standards
-* We strictly follow the **10 pre-commit checks** configured in `.pre-commit-config.yaml` including `black` formatting, `ruff` linting, and `mypy` static type checking.
-* Install pre-commit locally:
-  ```bash
-  pre-commit install
-  ```
+## Development Setup
 
-## 📝 Commit Guidelines
-We use semantic commit messages to automatically build changesets:
-* `feat:` New features (e.g. new UI panel)
-* `fix:` Bug fixes (e.g. handling file locks)
-* `docs:` Documentation edits (e.g. README or specs)
-* `style:` Formatting edits (black, white spaces)
-* `refactor:` Code changes that neither fix a bug nor add a feature
+1. **Prerequisites**: Ensure you have Python 3.11 installed.
+2. **Environment Ingestion**:
+   ```bash
+   pip install uv
+   uv venv -p 3.11
+   # Activate:
+   # Windows:
+   .venv\Scripts\activate
+   # Mac/Linux:
+   source .venv/bin/activate
+   ```
+3. **Install Dependencies**:
+   ```bash
+   uv pip install -r backend/requirements.txt
+   ```
 
-Thank you for keeping our codebase clean!
+---
+
+## Folder Architecture
+
+All modifications should target:
+- `backend/src/` for API endpoints, queue manager daemons, and database layers.
+- `frontend/` for HTML templates, CSS grids, and vanilla JS controllers.
+
+---
+
+## Coding Standards
+
+- **Formatter**: Code must be formatted using `black` and checked using `ruff`.
+- **Typing**: All Python signatures should have type annotations validated by `mypy`.
+- **Naming**: Use standard snake_case for functions and variables, and PascalCase for classes.
+
+---
+
+## Testing Workflows
+
+Before proposing pull requests, run all verification suites:
+1. **Ruff Lints**:
+   ```bash
+   ruff check backend/
+   ```
+2. **Format Check**:
+   ```bash
+   black --check backend/
+   ```
+3. **Type Check**:
+   ```bash
+   mypy backend/src/
+   ```
+4. **Pytest Suite**:
+   ```bash
+   .venv\Scripts\pytest
+   ```

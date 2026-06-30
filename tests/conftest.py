@@ -1,0 +1,48 @@
+import pytest
+import backend.src.database.db as db_mod
+import backend.src.engine.audio_processor as audio_mod
+import backend.src.engine.slm_processor as slm_mod
+import backend.src.app.queue_manager as qm_mod
+
+
+@pytest.fixture(autouse=True)
+def reset_singletons(monkeypatch):
+    # Set the test database environment variable
+    monkeypatch.setenv("DB_NAME", "localslate_test")
+
+    # Reset all caching singletons before each test run
+    db_mod._global_db_service = None
+    audio_mod._global_audio_service = None
+    slm_mod._global_slm_service = None
+
+    # Automatically initialize and clear the test database
+    try:
+        db_service = db_mod.get_db_service()
+        db_mod.Base.metadata.drop_all(bind=db_service.engine)
+        db_mod.init_db()
+        db_mod.clear_db()
+    except Exception:
+        pass
+
+    # Ensure queue manager is stopped if running
+    if qm_mod.global_queue_manager is not None:
+        try:
+            qm_mod.global_queue_manager.stop()
+        except Exception:
+            pass
+        qm_mod.global_queue_manager = None
+
+    # Reset queue manager status to default values
+    qm_mod.queue_status.update(
+        {
+            "is_running": False,
+            "current_file": None,
+            "current_status": "Idle",
+            "current_stage": 0,
+            "queue_count": 0,
+            "processed_count": 0,
+            "failed_count": 0,
+        }
+    )
+
+    yield

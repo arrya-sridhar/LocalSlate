@@ -1,29 +1,40 @@
 # Chronological Data Flow Trace (Walkthrough)
 
-This document traces the complete lifecycle of a raw audio input through the LocalSlate offline architecture.
+This document traces the complete lifecycle of input processing through the LocalSlate full-stack architecture.
 
-## Step 1: File Drop & Ingestion
-1.  A user (or an external offline device like a USB stick) drops a file named `field_report_alpha.wav` into the `data/cache/` directory.
-2.  `src/app/queue_manager.py` detects the new file via a filesystem watcher (`watchdog`).
-3.  The file is hashed to generate a unique ID (`uuid4` mapped to `incident_id`), moved to `data/queue/`, and a `.lock` file is established.
+---
 
-## Step 2: Local Audio Transcription
-1.  The orchestrator passes the absolute `Path` of the queued `.wav` file to `src/engine/audio_processor.py`.
-2.  `faster-whisper` (limited to 2 threads) loads the file and chunks it.
-3.  The model outputs raw transcribed text. Example: *"Arrived at Sector 7. Found the secondary cooling array offline. Priority is high. Agent K and Operative J are investigating."*
-4.  The `.wav` file is moved out of the queue and securely deleted to free disk space.
+## Step 1: Input Ingestion
+LocalSlate accepts input through two ingestion paths:
+1. **File Ingestion (Background Queue)**:
+   - A user uploads a file (`report.wav` or `notes.txt`) via the frontend upload panel, sending a `POST /upload` request to the backend.
+   - The API writes the file to the `data/cache/` directory.
+   - The `backend/src/app/queue_manager.py` daemon detects the file via a filesystem watcher (`watchdog`).
+   - The file is hashed to generate a unique `incident_id`, moved to `data/queue/` for processing, and a `.lock` file is created to lock state.
+2. **Direct Text Submission (Immediate)**:
+   - A user types notes into the field portal and clicks **Run Extraction** (`POST /process`).
+   - The API server bypasses the background file queue, running the SLM extraction synchronously on the request thread.
 
-## Step 3: Prompt Construction & SLM Inference
-1.  The transcribed text string is passed to `src/engine/slm_processor.py`.
-2.  The engine wraps the text in the strict system prompt:
-    *"You are an intelligence extractor. Read the following field note and output strictly a JSON object conforming to this schema... [SCHEMA INJECTED]... TEXT: [TRANSCRIPT INJECTED]"*
-3.  `llama-cpp-python` loads the Phi-3 GGUF model and executes inference.
-4.  The model streams back a raw string containing the JSON structure.
+---
 
-## Step 4: JSON Validation & Storage
-1.  The raw string is stripped of any markdown formatting (e.g., ```json ... ```).
-2.  The string is parsed via Python's `json.loads()` and validated using a Pydantic model enforcing our `data-model.md` definitions.
-3.  If validation passes, the JSON object is passed to `src/engine/db.py`.
-4.  A local SQLite transaction is initiated. The incident is inserted into the `incidents` table.
-5.  Foreign key relationships are inserted: locations ("Sector 7") into `identified_locations`, personnel ("Agent K", "Operative J") into `identified_personnel`, and tasks ("Deploy secondary cooling array") into `actionable_tasks`.
-6.  The transaction commits, the file lock is released, and the CLI dashboard flashes a success notification.
+## Step 2: Local Audio Transcription (For Audio Files Only)
+1. The background queue orchestrator passes the path of the queued `.wav` file to `backend/src/engine/audio_processor.py`.
+2. `faster-whisper` (quantized to `int8`, running on 2 threads) transcribes the audio, or falls back to a structured mock transcript if the model is missing.
+3. The raw audio file is immediately deleted (`unlinked`) from `data/queue/` to free disk space and prevent data retention risks.
+
+---
+
+## Step 3: SLM Extraction & Schema Structuring
+1. The plain text (either from direct submission or audio transcription) is passed to `backend/src/engine/slm_processor.py`.
+2. The processor wraps the text in a system prompt specifying the strict target JSON format.
+3. `llama-cpp-python` loads the local Phi-3 GGUF model and executes inference (or falls back to mock regex extraction).
+4. The model returns a formatted JSON string representing the incident details.
+
+---
+
+## Step 4: Schema Validation & Database Write
+1. The JSON string is validated against the Pydantic models in `backend/src/models/models.py`.
+2. The validated dictionary is passed to `backend/src/database/db.py`.
+3. A transactional write is opened on the SQLite database in **Write-Ahead Logging (WAL)** mode.
+4. The incident details, locations, personnel, and actionable tasks are inserted into the database.
+5. The connection is committed and closed, the file lock is released, and the frontend updates its stream display on the next polling cycle.
