@@ -54,7 +54,7 @@ def check_ast_compilation():
 # Check 3: YAML validator
 def check_yaml_files():
     for root, _, files in os.walk("."):
-        if ".git" in root or ".venv" in root:
+        if any(ignored in root for ignored in [".git", ".venv", "node_modules", "__pycache__", ".next"]):
             continue
         for file in files:
             if file.endswith((".yml", ".yaml")):
@@ -70,7 +70,7 @@ def check_yaml_files():
 # Check 4: JSON validator
 def check_json_files():
     for root, _, files in os.walk("."):
-        if ".git" in root or ".venv" in root or "data" in root:
+        if any(ignored in root for ignored in [".git", ".venv", "node_modules", "__pycache__", "data", ".next"]):
             continue
         for file in files:
             if file.endswith(".json"):
@@ -101,7 +101,7 @@ def check_conflict_markers():
 def check_large_files():
     limit_kb = 5000
     for root, _, files in os.walk("."):
-        if ".git" in root or ".venv" in root or ".models" in root or "data" in root:
+        if any(ignored in root for ignored in [".git", ".venv", "node_modules", "__pycache__", ".models", "data", ".next"]):
             continue
         for file in files:
             path = Path(root) / file

@@ -77,7 +77,7 @@ def run_with_timeout(func, args, timeout):
 
 def process_file(file_path: Path):
     try:
-        hasher = hashlib.md5()
+        hasher = hashlib.md5(usedforsecurity=False)
         with open(file_path, "rb") as f:
             buf = f.read(65536)
             while len(buf) > 0:
