@@ -11,6 +11,7 @@ export default function StatusPanel({ totalIncidents, processedCount }: StatusPa
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     const interval = setInterval(() => {
       const start = (window as unknown as Record<string, number>).__localslate_start || Date.now();
