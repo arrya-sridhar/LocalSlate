@@ -3,6 +3,7 @@ LocalSlate API Server
 FastAPI wrapper around the existing engine modules.
 Provides REST endpoints for the web dashboard frontend.
 """
+
 import sys
 import time
 import logging
@@ -73,7 +74,10 @@ class StatusResponse(BaseModel):
 
 @app.get("/api/health")
 def health_check():
-    return {"status": "ok", "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    return {
+        "status": "ok",
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
 
 
 @app.get("/api/status")
@@ -81,10 +85,11 @@ def get_status():
     """Get system status for the dashboard."""
     try:
         import psutil
+
         mem = psutil.virtual_memory()
         ram_info = {
-            "used_gb": round(mem.used / (1024 ** 3), 2),
-            "total_gb": round(mem.total / (1024 ** 3), 2),
+            "used_gb": round(mem.used / (1024**3), 2),
+            "total_gb": round(mem.total / (1024**3), 2),
             "percent": mem.percent,
         }
         cpu_percent = psutil.cpu_percent(interval=0.1)
@@ -99,7 +104,11 @@ def get_status():
         "is_running": True,
         "uptime_seconds": round(time.time() - START_TIME, 1),
         "total_incidents": total,
-        "pipeline_mode": "mock" if not (PROJECT_ROOT / ".models" / "slm" / "phi3-mini-4k.gguf").exists() else "live",
+        "pipeline_mode": (
+            "mock"
+            if not (PROJECT_ROOT / ".models" / "slm" / "phi3-mini-4k.gguf").exists()
+            else "live"
+        ),
         "ram": ram_info,
         "cpu_percent": cpu_percent,
         "max_threads": 4,
@@ -157,7 +166,9 @@ def ingest_text(request: TextIngestRequest):
 async def ingest_file(file: UploadFile = File(...)):
     """Upload a .txt file for processing."""
     if not file.filename or not file.filename.endswith(".txt"):
-        raise HTTPException(status_code=400, detail="Only .txt files are supported via web upload")
+        raise HTTPException(
+            status_code=400, detail="Only .txt files are supported via web upload"
+        )
 
     content = await file.read()
     text = content.decode("utf-8", errors="replace").strip()
@@ -170,4 +181,5 @@ async def ingest_file(file: UploadFile = File(...)):
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
