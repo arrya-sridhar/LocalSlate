@@ -1,4 +1,3 @@
-import os
 import sys
 import time
 import logging
@@ -21,10 +20,10 @@ logging.basicConfig(
     ]
 )
 
-from src.engine.db import init_db, get_latest_incidents, DatabaseEngine
-from src.app.queue_manager import start_queue_manager, stop_queue_manager, queue_status, get_queue_length
-from src.engine.audio_processor import WhisperProcessor
-from src.engine.slm_processor import SLMProcessor
+from src.engine.db import init_db, get_latest_incidents, DatabaseEngine  # noqa: E402
+from src.app.queue_manager import start_queue_manager, stop_queue_manager, queue_status, get_queue_length  # noqa: E402
+from src.engine.audio_processor import WhisperProcessor  # noqa: E402
+from src.engine.slm_processor import SLMProcessor  # noqa: E402
 
 try:
     from rich.console import Console
@@ -141,23 +140,23 @@ def draw_status() -> Panel:
 
     manager_state = "RUNNING" if queue_status["is_running"] else "STOPPED"
     manager_color = "green" if queue_status["is_running"] else "red"
-    status_text.append(f"• Ingestion Service: ", style="bold")
+    status_text.append("• Ingestion Service: ", style="bold")
     status_text.append(f"{manager_state}\n", style=manager_color)
 
-    status_text.append(f"• Active File: ", style="bold")
+    status_text.append("• Active File: ", style="bold")
     curr_file = queue_status["current_file"]
     status_text.append(f"{curr_file or 'None'}\n", style="cyan")
 
-    status_text.append(f"• Pipeline Step: ", style="bold")
+    status_text.append("• Pipeline Step: ", style="bold")
     status_text.append(f"{queue_status['current_status']}\n", style="bold green" if queue_status["current_status"] != "Idle" else "white")
 
-    status_text.append(f"• Local Ingest Queue: ", style="bold")
+    status_text.append("• Local Ingest Queue: ", style="bold")
     status_text.append(f"{get_queue_length()} pending\n", style="yellow")
 
-    status_text.append(f"• RAM Allocation: ", style="bold")
+    status_text.append("• RAM Allocation: ", style="bold")
     status_text.append(f"{check_ram_string()}\n", style="white")
 
-    status_text.append(f"• CPU Threads: ", style="bold")
+    status_text.append("• CPU Threads: ", style="bold")
     status_text.append("4 Max (2 Whisper, 2 SLM)\n\n", style="white")
 
     status_text.append("METRICS\n", style="bold yellow")

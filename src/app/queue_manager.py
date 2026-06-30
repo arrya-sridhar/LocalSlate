@@ -1,4 +1,3 @@
-import os
 import shutil
 import uuid
 import time
@@ -6,7 +5,7 @@ import logging
 import threading
 import hashlib
 from pathlib import Path
-from src.engine.audio_processor import transcribe_audio, validate_audio_file
+from src.engine.audio_processor import transcribe_audio
 from src.engine.slm_processor import IncidentReport, structure_text
 from src.engine.db import insert_incident
 from watchdog.observers import Observer
@@ -112,7 +111,7 @@ def process_file(file_path: Path):
                 text = f.read(4010)
 
             if len(text) > 4000:
-                logging.warning(f"Text file exceeds 4000 char limit. Truncating.")
+                logging.warning("Text file exceeds 4000 char limit. Truncating.")
                 text = text[:4000]
 
             queue_status["current_status"] = "Structuring..."

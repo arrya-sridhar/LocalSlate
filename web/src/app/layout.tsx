@@ -18,7 +18,8 @@ export default function RootLayout({
       <head>
         <meta name="theme-color" content="#0a0e17" />
         <meta name="color-scheme" content="dark" />
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🌌</text></svg>" />
+        <link rel="icon" href="/icon.svg" />
+        <link rel="manifest" href="/manifest.json" />
       </head>
       <body>{children}</body>
     </html>

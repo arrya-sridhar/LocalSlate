@@ -643,4 +643,4 @@ typing-extensions==4.15.0 \
     #   huggingface-hub
     #   llama-cpp-python
     #   pydantic
-    #   pydantic-core
+    #   pydantic-corePyYAML==6.0.1

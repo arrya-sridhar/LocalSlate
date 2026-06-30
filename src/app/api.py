@@ -3,10 +3,8 @@ LocalSlate API Server
 FastAPI wrapper around the existing engine modules.
 Provides REST endpoints for the web dashboard frontend.
 """
-import os
 import sys
 import time
-import uuid
 import logging
 from pathlib import Path
 from typing import Optional
@@ -16,12 +14,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, UploadFile, File  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from pydantic import BaseModel  # noqa: E402
 
-from src.engine.db import DatabaseEngine, init_db, get_latest_incidents
-from src.engine.slm_processor import mock_extraction, IncidentReport
+from src.engine.db import DatabaseEngine, init_db, get_latest_incidents  # noqa: E402
+from src.engine.slm_processor import mock_extraction, IncidentReport  # noqa: E402
 
 # Initialize logging
 log_dir = PROJECT_ROOT / "data"

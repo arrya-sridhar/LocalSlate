@@ -1,9 +1,5 @@
-import os
-import uuid
-import json
 import sqlite3
 from pathlib import Path
-from datetime import datetime
 from pydantic import BaseModel, Field
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent

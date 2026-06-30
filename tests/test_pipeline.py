@@ -1,11 +1,8 @@
 import pytest
 import sqlite3
 from pathlib import Path
-import os
-import uuid
-import datetime
 
-from src.engine.db import DatabaseEngine, init_db, insert_incident, get_latest_incidents
+from src.engine.db import DatabaseEngine
 from src.engine.audio_processor import validate_audio_file
 from src.engine.slm_processor import mock_extraction, IncidentReport
 
