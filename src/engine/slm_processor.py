@@ -178,6 +178,7 @@ class SLMProcessor:
             except Exception as e:
                 logging.error(f"Llama-cpp inference error: {e}")
                 raise e
+        return IncidentReport(**mock_extraction(text)).model_dump()
 
 # Compatibility global functions for our app shell
 def structure_text(text: str) -> dict:

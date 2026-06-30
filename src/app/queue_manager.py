@@ -6,7 +6,7 @@ import threading
 import hashlib
 from pathlib import Path
 from src.engine.audio_processor import transcribe_audio
-from src.engine.slm_processor import IncidentReport, structure_text
+from src.engine.slm_processor import IncidentReport, structure_text, Entities
 from src.engine.db import insert_incident
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -20,8 +20,18 @@ FAILED_DIR = PROJECT_ROOT / "data" / "failed_audio"
 for d in [CACHE_DIR, QUEUE_DIR, FAILED_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
+from typing import TypedDict, Optional
+
+class QueueStatus(TypedDict):
+    is_running: bool
+    current_file: Optional[str]
+    current_status: str
+    queue_count: int
+    processed_count: int
+    failed_count: int
+
 # Global status tracking for the dashboard
-queue_status = {
+queue_status: QueueStatus = {
     "is_running": False,
     "current_file": None,
     "current_status": "Idle",
@@ -144,10 +154,7 @@ def process_file(file_path: Path):
                 iso_timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 computed_priority_level="HIGH",
                 system_summary=f"FAILED PROCESSING: {str(e)[:200]}",
-                identified_entities={
-                    "locations": [],
-                    "personnel": []
-                },
+                identified_entities=Entities(locations=[], personnel=[]),
                 actionable_tasks=[]
             ).model_dump()
             insert_incident(fallback_report)

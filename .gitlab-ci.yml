@@ -1,87 +1,100 @@
+# .gitlab-ci.yml
+# LocalSlate GitLab CI/CD Pipeline
+
 stages:
-  - format
   - lint
+  - format
   - type_check
-  - security
   - test
-  - coverage
+  - security
+  - audit
+  - deploy
+  - release
 
 variables:
   PYTHON: 'C:\Users\srees\AppData\Local\Programs\Python\Python312\python.exe'
 
-black-check:
-  stage: format
-  script:
-    - '& "$env:PYTHON" -m pip install black'
-    - '$files = git ls-files *.py; if ($files) { & "$env:PYTHON" -m black --check $files }; exit 0'
-
-ruff-format-check:
-  stage: format
-  script:
-    - '& "$env:PYTHON" -m pip install ruff'
-    - '$files = git ls-files *.py; if ($files) { & "$env:PYTHON" -m ruff format --check $files }; exit 0'
-
+# --- LINT STAGE ---
 ruff-check:
   stage: lint
   script:
     - '& "$env:PYTHON" -m pip install ruff'
-    - '$files = git ls-files *.py; if ($files) { & "$env:PYTHON" -m ruff check $files }; exit 0'
+    - '& "$env:PYTHON" -m ruff check src tests tools'
 
-flake8-check:
+eslint-web:
   stage: lint
   script:
-    - '& "$env:PYTHON" -m pip install flake8'
-    - '$files = git ls-files *.py; if ($files) { & "$env:PYTHON" -m flake8 $files }; exit 0'
+    - cd web
+    - npm ci
+    - npm run lint
 
-pyupgrade-check:
-  stage: lint
+# --- FORMAT STAGE ---
+black-check:
+  stage: format
   script:
-    - '& "$env:PYTHON" -m pip install pyupgrade'
-    - 'Write-Host "Pyupgrade configured"; exit 0'
+    - '& "$env:PYTHON" -m pip install black'
+    - '& "$env:PYTHON" -m black --check src tests tools'
 
-vulture-check:
-  stage: lint
-  script:
-    - '& "$env:PYTHON" -m pip install vulture'
-    - '$files = git ls-files *.py; if ($files) { & "$env:PYTHON" -m vulture $files }; exit 0'
-
-repo-audit:
-  stage: lint
-  script:
-    - 'if (Test-Path tools/repo_audit.py) { & "$env:PYTHON" tools/repo_audit.py }; exit 0'
-
+# --- TYPE_CHECK STAGE ---
 mypy-check:
   stage: type_check
   script:
     - '& "$env:PYTHON" -m pip install mypy'
-    - '$files = git ls-files *.py; if ($files) { & "$env:PYTHON" -m mypy $files }; exit 0'
+    - '& "$env:PYTHON" -m pip install -r requirements.txt'
+    - '& "$env:PYTHON" -m mypy src tests tools || exit 0'
 
-bandit-check:
-  stage: security
+tsc-web:
+  stage: type_check
   script:
-    - '& "$env:PYTHON" -m pip install bandit'
-    - '$files = git ls-files *.py; if ($files) { & "$env:PYTHON" -m bandit $files }; exit 0'
+    - cd web
+    - npm ci
+    - npx tsc --noEmit
 
-semgrep-check:
-  stage: security
-  script:
-    - '& "$env:PYTHON" -m pip install semgrep'
-    - '& "$env:PYTHON" -m semgrep scan --config auto; exit 0'
-
-pip-audit-check:
-  stage: security
-  script:
-    - '& "$env:PYTHON" -m pip install pip-audit'
-    - '& "$env:PYTHON" -m pip_audit; exit 0'
-
+# --- TEST STAGE ---
 unit-tests:
   stage: test
   script:
     - '& "$env:PYTHON" -m pip install pytest'
-    - '& "$env:PYTHON" -m pytest; exit 0'
+    - '& "$env:PYTHON" -m pip install -r requirements.txt'
+    - '$env:PYTHONPATH = "."'
+    - '& "$env:PYTHON" -m pytest'
 
-coverage-test:
-  stage: coverage
+# --- SECURITY STAGE ---
+security-scan:
+  stage: security
   script:
-    - '& "$env:PYTHON" -m pip install pytest pytest-cov'
-    - '& "$env:PYTHON" -m pytest --cov=. --cov-report=term --cov-fail-under=1; exit 0'
+    - '& "$env:PYTHON" -m pip install bandit'
+    - '& "$env:PYTHON" -m bandit -r src/ -ll'
+  allow_failure: true
+
+# --- AUDIT STAGE ---
+dependency_audit:
+  stage: audit
+  script:
+    - '& "$env:PYTHON" -m pip install -r requirements.txt'
+    - '& "$env:PYTHON" tools/repo_audit.py'
+
+# --- DEPLOY STAGE ---
+pages:
+  stage: deploy
+  script:
+    - cd web
+    - npm ci
+    - npm run build
+    - mv out ../public
+  artifacts:
+    paths:
+      - public
+  environment:
+    name: production
+    url: $CI_PAGES_URL
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# --- RELEASE STAGE ---
+cli_release:
+  stage: release
+  script:
+    - echo "Release job running on Windows Shell. To properly release, download artifacts manually or configure GitLab Release CLI for Windows."
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

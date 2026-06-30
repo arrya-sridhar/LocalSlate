@@ -156,7 +156,7 @@ def ingest_text(request: TextIngestRequest):
 @app.post("/api/ingest/file")
 async def ingest_file(file: UploadFile = File(...)):
     """Upload a .txt file for processing."""
-    if not file.filename.endswith(".txt"):
+    if not file.filename or not file.filename.endswith(".txt"):
         raise HTTPException(status_code=400, detail="Only .txt files are supported via web upload")
 
     content = await file.read()
