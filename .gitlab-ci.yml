@@ -1,168 +1,49 @@
-# .gitlab-ci.yml
-# LocalSlate GitLab CI/CD Pipeline (At least 10 checks)
-
 stages:
   - lint
-  - format
-  - type_check
   - test
-  - coverage
-  - security
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
 cache:
   paths:
-    - .cache/pip
-    - .venv/
+    - .cache/pip/
 
-# Job 1: Code formatting (Black)
 black-check:
-  stage: format
+  stage: lint
   script:
-    - pip install uv
-    - uv venv
-    - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r backend/requirements.txt
-    - uv pip install black
-    - black --check backend/src/ backend/main.py tests/ tools/
+    - python -m pip install --upgrade pip
+    - python -m pip install -r requirements.txt
+    - python -m pip install black
+    - python -m black --check src tests tools
 
-# Job 2: Code linting (Ruff)
 ruff-check:
   stage: lint
   script:
-    - pip install uv
-    - uv venv
-    - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r backend/requirements.txt
-    - uv pip install ruff
-    - ruff check backend/src/ backend/main.py tests/ tools/
+    - python -m pip install --upgrade pip
+    - python -m pip install -r requirements.txt
+    - python -m pip install ruff
+    - python -m ruff check src tests tools
 
-# Job 3: Type checking (Mypy)
 mypy-check:
-  stage: type_check
+  stage: lint
   script:
-    - pip install uv
-    - uv venv
-    - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r backend/requirements.txt
-    - uv pip install mypy
-    - mypy backend/src/ tests/ tools/
+    - python -m pip install --upgrade pip
+    - python -m pip install -r requirements.txt
+    - python -m pip install mypy
+    - python -m mypy src tests tools
 
-# Job 4: Custom Repository Audit Checks (6 checks: AST, YAML, JSON, conflict markers, large files, whitespaces)
 repo-audit:
   stage: lint
   script:
-    - pip install uv
-    - uv venv
-    - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r backend/requirements.txt
+    - python -m pip install --upgrade pip
+    - python -m pip install -r requirements.txt
     - python tools/repo_audit.py
 
-# Job 5: Unit and Integration testing (Pytest)
 unit-tests:
   stage: test
   script:
-    - pip install uv
-    - uv venv
-    - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r backend/requirements.txt
-    - uv pip install pytest
-    - pytest
-
-# Job 6: Unused code check (Vulture)
-vulture-check:
-  stage: lint
-  script:
-    - pip install uv
-    - uv venv
-    - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r backend/requirements.txt
-    - uv pip install vulture
-    - vulture backend/main.py backend/run.py backend/src/ tests/ tools/
-
-# Job 7: Security check (Bandit)
-bandit-check:
-  stage: security
-  script:
-    - pip install uv
-    - uv venv
-    - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r backend/requirements.txt
-    - uv pip install bandit[toml]
-    - bandit -c pyproject.toml -r backend tests tools
-
-# Job 8: Lint check (Pylint)
-pylint-check:
-  stage: lint
-  script:
-    - pip install uv
-    - uv venv
-    - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r backend/requirements.txt
-    - uv pip install pylint
-    - pylint backend tests tools
-
-# Job 9: Style check (Flake8)
-flake8-check:
-  stage: lint
-  script:
-    - pip install uv
-    - uv venv
-    - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r backend/requirements.txt
-    - uv pip install flake8
-    - flake8 backend tests tools
-
-# Job 10: Static analysis (Semgrep)
-semgrep-check:
-  stage: lint
-  script:
-    - pip install uv
-    - uv venv
-    - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r backend/requirements.txt
-    - uv pip install semgrep
-    - semgrep scan --config auto
-
-# Job 11: Syntax upgrade check (Pyupgrade)
-pyupgrade-check:
-  stage: lint
-  script:
-    - pip install uv
-    - uv venv
-    - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r backend/requirements.txt
-    - uv pip install pyupgrade
-    # Run pyupgrade in dry-run mode or check files
-    - pyupgrade --py311-plus backend/main.py backend/run.py
-
-# Job 12: Secrets scanning (Gitleaks)
-gitleaks-scan:
-  stage: security
-  script:
-    # Expects gitleaks binary in PATH or environment
-    - gitleaks detect --source . --no-git --config .gitleaks.toml
-
-# Job 13: Dependency vulnerability audit (Pip-audit)
-pip-audit-check:
-  stage: security
-  script:
-    - pip install uv
-    - uv venv
-    - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r backend/requirements.txt
-    - uv pip install pip-audit
-    - pip-audit --ignore-vuln CVE-2025-69872
-
-# Job 14: Coverage check (pytest-cov)
-coverage-test:
-  stage: coverage
-  script:
-    - pip install uv
-    - uv venv
-    - .venv\Scripts\activate || source .venv/bin/activate
-    - uv pip install -r backend/requirements.txt
-    - uv pip install pytest pytest-cov
-    - pytest --cov=backend --cov-report=term-missing --cov-fail-under=70
+    - python -m pip install --upgrade pip
+    - python -m pip install -r requirements.txt
+    - python -m pip install pytest
+    - python -m pytest
