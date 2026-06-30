@@ -1,20 +1,18 @@
-# Changelog
+# Changelog 📋
 
 All notable changes to the LocalSlate project will be documented in this file.
 
-## [2.0.0] - 2026-06-28
-
+## [0.2.0] - 2026-06-28 (Phase 2 MVP)
 ### Added
-- **Full-Stack REST Architecture**: Created a proper FastAPI backend with clean routing, dependency injection, and centralized exception handling.
-- **Vanilla SPA Frontend**: Designed a responsive, offline-friendly frontend UI dashboard with automatic dark-mode support using Vanilla HTML, CSS, and JS.
-- **Write-Ahead Logging (WAL)**: Added WAL mode tuning and connection timeouts for the SQLite Database Service to support reliable concurrent operations.
-- **Enhanced Status Monitoring**: Updated the `/status` API endpoint to return active CPU utilization, RAM usage, and database records count telemetry.
-- **`pytest.ini` Configuration**: Integrated pytests pythonpaths to prevent `ModuleNotFoundError` during test collection.
+- Completed **CLI Dashboard** built on `rich` rendering live queue sizes, active processes, system resources, and database entries.
+- Created `queue_manager` managing lock files, hashes, file movement, and 120s timeouts for audio files.
+- Built Local SLM wrapper with `llama-cpp-python` and validation parser using Pydantic schemas.
+- Built faster-whisper local int8 transcription wrapper with OMP thread limit constraints.
+- Generated `requirements.txt` with absolute hashes pinned for Python 3.11.
+- Initialized local SQLite schema with database indexes for fast query lookup.
 
-### Changed
-- **Directory Restructuring**: Refactored the code into a modular structure:
-  - `backend/` for server logic and requirements.
-  - `frontend/` for client-side assets.
-  - `specs/` for architectural and operational specifications.
-  - `tools/` and `tests/` for pipeline tools and test suites.
-- **Render Deployment Support**: Separated lightweight dependencies into `backend/requirements-render.txt` to guarantee clean compilation on Render without local AI binaries.
+## [0.1.0] - 2026-06-28 (Phase 1 Specification)
+### Added
+- Initial specifications for pipeline flow, SQLite DDL database schemas, and model sizing criteria.
+- GPL-2.0 copyleft `LICENSE` configuration.
+- Comprehensive `README.md` defining setup, constraints, and architecture.

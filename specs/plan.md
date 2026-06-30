@@ -2,17 +2,17 @@
 
 ## 1. Environment Parity Strategy (2-Man Distributed Team)
 Working offline requires strict guarantees that code behaving correctly on Developer 1's laptop behaves identically on Developer 2's laptop.
-*   **Dependency Pinning:** The project uses `uv` for lightning-fast deterministic builds.
-    - Local development requirements: `backend/requirements.txt`.
-    - Lightweight Render deployment requirements: `backend/requirements-render.txt`.
-*   **Python Version:** Strictly pinned to Python 3.11.x to ensure native C-bindings compile identically.
+*   **Dependency Pinning:** The project uses `uv` for lightning-fast deterministic builds. A `requirements.txt` with absolute hashes is mandatory.
+*   **Python Version:** Strictly pinned to Python 3.11.x to ensure native C-bindings for SQLite and `llama-cpp-python` compile identically.
 *   **Virtual Environments:** Both devs must run in a `.venv` located at the project root.
 
 ## 2. Cross-Platform Path Portability (The Pathlib Rule)
-Hardcoded paths are strictly prohibited. All file I/O utilizes Python's `pathlib.Path` relative to the dynamically resolved project root:
+Hardcoded paths (`/Users/..` or `C:\...`) are strictly prohibited. 
+*   **Rule:** All file I/O must utilize Python's `pathlib.Path`.
+*   **Base Anchor:** The project root is dynamically determined at runtime:
 ```python
 from pathlib import Path
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent 
 MODELS_DIR = PROJECT_ROOT / ".models"
 DB_PATH = PROJECT_ROOT / "data" / "localslate.db"
 ```
@@ -30,9 +30,7 @@ __pycache__/
 
 # LocalSlate Local State
 data/*.db
-data/*.db-journal
-data/*.db-wal
-data/*.db-shm
+data/*.sqlite3
 data/cache/
 data/queue/
 data/failed_audio/
@@ -45,4 +43,5 @@ data/failed_audio/
 .DS_Store
 Thumbs.db
 ```
-By ensuring `.models/` and `data/` are git-ignored, we achieve zero-conflict Git integration.
+
+By ensuring `.models/` and `data/` are git-ignored, we achieve **zero-conflict Git integration**, allowing Developer 1 to update DB schemas while Developer 2 works on the UI, with neither accidentally overriding the other's local state.

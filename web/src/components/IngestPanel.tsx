@@ -24,6 +24,16 @@ export default function IngestPanel({ onIngest, isProcessing }: IngestPanelProps
   const charCount = text.length;
   const charClass = charCount > 3800 ? "danger" : charCount > 3000 ? "warn" : "";
 
+  function readFile(file: File) {
+    // Support text files, JSON, CSV, etc.
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setText(content);
+    };
+    reader.readAsText(file);
+  }
+
   const handleSubmit = () => {
     const content = mode === "audio" ? transcript : text;
     if (content.trim()) {
@@ -45,15 +55,6 @@ export default function IngestPanel({ onIngest, isProcessing }: IngestPanelProps
     if (file) readFile(file);
   };
 
-  const readFile = (file: File) => {
-    // Support text files, JSON, CSV, etc.
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      setText(content);
-    };
-    reader.readAsText(file);
-  };
 
   const toggleRecording = () => {
     if (isRecording) {

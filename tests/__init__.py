@@ -1,1 +1,0 @@
-# LocalSlate tests package
