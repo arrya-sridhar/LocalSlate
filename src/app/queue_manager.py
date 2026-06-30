@@ -4,6 +4,7 @@ import time
 import logging
 import threading
 import hashlib
+from typing import TypedDict, Optional
 from pathlib import Path
 from src.engine.audio_processor import transcribe_audio
 from src.engine.slm_processor import IncidentReport, structure_text, Entities
@@ -19,8 +20,6 @@ FAILED_DIR = PROJECT_ROOT / "data" / "failed_audio"
 # Ensure directories exist
 for d in [CACHE_DIR, QUEUE_DIR, FAILED_DIR]:
     d.mkdir(parents=True, exist_ok=True)
-
-from typing import TypedDict, Optional
 
 class QueueStatus(TypedDict):
     is_running: bool

@@ -25,7 +25,7 @@ eslint-web:
   stage: lint
   script:
     - cd web
-    - npm ci
+    - npm install
     - npm run lint
 
 # --- FORMAT STAGE ---
@@ -47,7 +47,7 @@ tsc-web:
   stage: type_check
   script:
     - cd web
-    - npm ci
+    - npm install
     - npx tsc --noEmit
 
 # --- TEST STAGE ---
@@ -79,7 +79,7 @@ pages:
   stage: deploy
   script:
     - cd web
-    - npm ci
+    - npm install
     - npm run build
     - mv out ../public
   artifacts:
